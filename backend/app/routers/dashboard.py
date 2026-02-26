@@ -1,0 +1,99 @@
+from fastapi import APIRouter
+from datetime import date, timedelta
+
+from ..db import get_db
+
+router = APIRouter()
+
+
+@router.get("/today")
+def get_today(target_date: str = None):
+    today = target_date or str(date.today())
+    conn = get_db()
+    try:
+        # Food summary
+        food = conn.execute(
+            """SELECT
+                ROUND(SUM(calories), 1) as calories,
+                ROUND(SUM(protein_g), 1) as protein_g,
+                ROUND(SUM(sodium_mg), 0) as sodium_mg,
+                ROUND(SUM(carbs_g), 1) as carbs_g,
+                ROUND(SUM(fat_g), 1) as fat_g,
+                ROUND(SUM(fiber_g), 1) as fiber_g,
+                ROUND(SUM(alcohol_calories), 0) as alcohol_calories,
+                COUNT(*) as entry_count
+               FROM food_entries WHERE recorded_date=? AND deleted_at IS NULL""",
+            (today,)
+        ).fetchone()
+
+        # Targets
+        targets_rows = conn.execute(
+            "SELECT metric, value FROM targets WHERE effective_date <= ? ORDER BY effective_date DESC",
+            (today,)
+        ).fetchall()
+        targets = {r["metric"]: r["value"] for r in targets_rows}
+
+        # Exercise
+        exercise = conn.execute(
+            "SELECT * FROM exercise_sessions WHERE recorded_date=? AND deleted_at IS NULL ORDER BY created_at",
+            (today,)
+        ).fetchall()
+
+        # Sleep (last night)
+        sleep = conn.execute(
+            "SELECT * FROM sleep_records WHERE recorded_date=? ORDER BY created_at DESC LIMIT 1",
+            (today,)
+        ).fetchone()
+
+        # Daily suggestion
+        suggestion = conn.execute(
+            "SELECT * FROM daily_suggestions WHERE suggestion_date=?",
+            (today,)
+        ).fetchone()
+
+        return {
+            "date": today,
+            "food": dict(food) if food else {},
+            "targets": targets,
+            "exercise": [dict(e) for e in exercise],
+            "sleep": dict(sleep) if sleep else None,
+            "suggestion": dict(suggestion) if suggestion else None,
+        }
+    finally:
+        conn.close()
+
+
+@router.get("/week")
+def get_week_summary(ending: str = None):
+    end = date.fromisoformat(ending) if ending else date.today()
+    start = end - timedelta(days=6)
+    conn = get_db()
+    try:
+        rows = conn.execute(
+            """SELECT recorded_date,
+                ROUND(SUM(calories), 0) as calories,
+                ROUND(SUM(protein_g), 1) as protein_g,
+                ROUND(SUM(sodium_mg), 0) as sodium_mg,
+                ROUND(SUM(alcohol_calories), 0) as alcohol_calories
+               FROM food_entries
+               WHERE recorded_date BETWEEN ? AND ? AND deleted_at IS NULL
+               GROUP BY recorded_date ORDER BY recorded_date""",
+            (str(start), str(end))
+        ).fetchall()
+
+        exercise_rows = conn.execute(
+            """SELECT recorded_date, session_type, COUNT(*) as sessions
+               FROM exercise_sessions
+               WHERE recorded_date BETWEEN ? AND ? AND deleted_at IS NULL
+               GROUP BY recorded_date, session_type""",
+            (str(start), str(end))
+        ).fetchall()
+
+        return {
+            "start": str(start),
+            "end": str(end),
+            "food_by_day": [dict(r) for r in rows],
+            "exercise_by_day": [dict(r) for r in exercise_rows],
+        }
+    finally:
+        conn.close()

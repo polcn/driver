@@ -1,0 +1,35 @@
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from contextlib import asynccontextmanager
+
+from .db import init_db
+from .routers import food, dashboard
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    init_db()
+    yield
+
+
+app = FastAPI(
+    title="Pulse API",
+    version="0.1.0",
+    description="Personal health platform API",
+    lifespan=lifespan,
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Tailscale-only network, no external exposure
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+app.include_router(food.router, prefix="/api/v1/food", tags=["food"])
+app.include_router(dashboard.router, prefix="/api/v1/dashboard", tags=["dashboard"])
+
+
+@app.get("/health")
+def health_check():
+    return {"status": "ok", "service": "pulse"}

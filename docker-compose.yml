@@ -1,0 +1,21 @@
+services:
+  backend:
+    build: ./backend
+    ports:
+      - "8100:8000"
+    volumes:
+      - pulse_data:/data
+    env_file:
+      - .env
+    restart: unless-stopped
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "8101:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  pulse_data:
