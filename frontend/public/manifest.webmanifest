@@ -1,0 +1,17 @@
+{
+  "name": "Driver Health Dashboard",
+  "short_name": "Driver",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f4efe7",
+  "theme_color": "#2b5960",
+  "description": "Personal health dashboard for food, exercise, sleep, labs, and training guidance.",
+  "icons": [
+    {
+      "src": "/icons/driver-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
