@@ -620,8 +620,8 @@ Based on max HR formula: 220 - age (56) = **164 bpm**
 
 ---
 
-*PRD status: Active v0.9 — Phase 5 in progress*
-*Next step: phase-5 priorities (photo-food flow)*
+*PRD status: Active v0.11 — Phase 5 complete*
+*Next step: phase-6 scoping (LLM image parsing integration quality pass and longitudinal coaching loops)*
 
 ---
 ## Changelog
@@ -637,3 +637,4 @@ Based on max HR formula: 220 - age (56) = **164 bpm**
 | 0.8 | 2026-02-27 | Completed Phase 4: agent v1 query/week/suggestion endpoints, PWA manifest + service worker + mobile polish, and validation hardening for labs/supplements/medications/medical history APIs |
 | 0.9 | 2026-02-27 | Started Phase 5: added goals + goal plans API (create/list/update, versioned plans, generated plan scaffold) with test coverage |
 | 0.10 | 2026-02-27 | Added doctor-visit report API (`/api/v1/reports/doctor-visit`) with markdown output and aggregate health summary for appointment prep |
+| 0.11 | 2026-02-27 | Added photo-food log flow endpoint (`/api/v1/food/from-photo`) for estimated macro capture with photo URL provenance and review notes |

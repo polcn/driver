@@ -158,3 +158,24 @@ def test_food_weekly_summary_groups_days_in_range(client):
             },
         ],
     }
+
+
+def test_food_from_photo_creates_estimated_entry_with_photo_url(client):
+    response = client.post(
+        "/api/v1/food/from-photo",
+        json={
+            "recorded_date": "2026-02-27",
+            "meal_type": "drink",
+            "description": "Protein shake with almond milk",
+            "photo_url": "https://example.com/photo.jpg",
+            "servings": 1.0,
+            "source": "agent",
+        },
+    )
+    assert response.status_code == 201
+    payload = response.json()
+    assert payload["is_estimated"] == 1
+    assert payload["photo_url"] == "https://example.com/photo.jpg"
+    assert payload["source"] == "agent"
+    assert payload["protein_g"] >= 30
+    assert "Estimated from photo input" in payload["notes"]
