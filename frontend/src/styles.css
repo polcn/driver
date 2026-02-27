@@ -165,6 +165,18 @@ body {
   grid-column: span 2;
 }
 
+.insights-panel {
+  margin-bottom: 16px;
+}
+
+.insights-list {
+  margin: 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 10px;
+  color: #3e4d56;
+}
+
 .trend-chart {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(48px, 1fr));
