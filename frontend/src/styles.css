@@ -444,6 +444,58 @@ body {
   overflow: auto;
 }
 
+.goal-form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.goal-form input,
+.goal-form select,
+.goal-form button {
+  font: inherit;
+  border-radius: 10px;
+  border: 1px solid rgba(24, 33, 38, 0.2);
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.85);
+}
+
+.goal-form button,
+.goal-item button {
+  background: linear-gradient(90deg, #be7f34, #3e6d72);
+  color: #fff;
+  border: 0;
+  font-weight: 600;
+}
+
+.goal-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 10px;
+}
+
+.goal-item {
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(24, 33, 38, 0.12);
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.goal-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.goal-item button {
+  margin-top: 6px;
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+
 @media (max-width: 900px) {
   .hero,
   .grid,

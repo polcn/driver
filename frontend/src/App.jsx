@@ -28,6 +28,7 @@ const emptyLabTrend = [];
 const emptySupplements = [];
 const emptyMedications = [];
 const emptyDoctorReport = null;
+const emptyGoals = [];
 
 function MetricCard({ label, value, target, unit }) {
   const displayValue = value ?? 0;
@@ -194,6 +195,15 @@ function App() {
   const [doctorReport, setDoctorReport] = useState(emptyDoctorReport);
   const [reportDays, setReportDays] = useState(30);
   const [reportStatus, setReportStatus] = useState("");
+  const [goals, setGoals] = useState(emptyGoals);
+  const [goalName, setGoalName] = useState("");
+  const [goalMetric, setGoalMetric] = useState("weight_lbs");
+  const [goalType, setGoalType] = useState("target");
+  const [goalTargetValue, setGoalTargetValue] = useState("");
+  const [goalDirection, setGoalDirection] = useState("down");
+  const [goalStatus, setGoalStatus] = useState("");
+  const [goalPlanStatus, setGoalPlanStatus] = useState("");
+  const [selectedPlanText, setSelectedPlanText] = useState("");
   const [status, setStatus] = useState("loading");
   const [error, setError] = useState("");
 
@@ -227,6 +237,7 @@ function App() {
           supplementsResponse,
           medicationsResponse,
           reportResponse,
+          goalsResponse,
           setsPayload
         ] = await Promise.all([
           fetch(`/api/v1/metrics?metric=weight_lbs&days=14&ending=${todayPayload.date}`),
@@ -239,6 +250,7 @@ function App() {
           fetch("/api/v1/supplements"),
           fetch("/api/v1/medications"),
           fetch(`/api/v1/reports/doctor-visit?days=${reportDays}&ending=${todayPayload.date}`),
+          fetch("/api/v1/goals"),
           Promise.all(
             (todayPayload.exercise ?? [])
               .filter(isStrengthSession)
@@ -282,6 +294,9 @@ function App() {
       if (!reportResponse.ok) {
         throw new Error(`Doctor report request failed: ${reportResponse.status}`);
       }
+      if (!goalsResponse.ok) {
+        throw new Error(`Goals request failed: ${goalsResponse.status}`);
+      }
       const weightPayload = await weightResponse.json();
       const waistPayload = await waistResponse.json();
       const sleepPayload = await sleepResponse.json();
@@ -292,6 +307,7 @@ function App() {
       const supplementsPayload = await supplementsResponse.json();
       const medicationsPayload = await medicationsResponse.json();
       const reportPayload = await reportResponse.json();
+      const goalsPayload = await goalsResponse.json();
       const exerciseSetsPayload = Object.fromEntries(setsPayload);
 
       setSnapshot(todayPayload);
@@ -306,6 +322,7 @@ function App() {
       setSupplements(supplementsPayload);
       setMedications(medicationsPayload);
       setDoctorReport(reportPayload);
+      setGoals(goalsPayload);
       setExerciseSets(exerciseSetsPayload);
       setStatus("ready");
     } catch (err) {
@@ -363,6 +380,57 @@ function App() {
       setReportStatus("ready");
     } catch (err) {
       setReportStatus(err instanceof Error ? err.message : "refresh failed");
+    }
+  }
+
+  async function handleCreateGoal(event) {
+    event.preventDefault();
+    const startDate = snapshot.date ?? new Date().toISOString().slice(0, 10);
+    setGoalStatus("submitting");
+    try {
+      const payload = {
+        name: goalName,
+        metric: goalMetric,
+        goal_type: goalType,
+        start_date: startDate
+      };
+      if (goalType === "target") {
+        payload.target_value = Number(goalTargetValue);
+      } else {
+        payload.direction = goalDirection;
+      }
+      const response = await fetch("/api/v1/goals/", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      if (!response.ok) {
+        throw new Error(`Goal create failed: ${response.status}`);
+      }
+      setGoalStatus("saved");
+      setGoalName("");
+      setGoalTargetValue("");
+      await loadSnapshot();
+    } catch (err) {
+      setGoalStatus(err instanceof Error ? err.message : "submit failed");
+    }
+  }
+
+  async function handleGeneratePlan(goalId) {
+    setGoalPlanStatus(`generating plan for #${goalId}`);
+    try {
+      const response = await fetch(`/api/v1/goals/${goalId}/plans/generate`, {
+        method: "POST"
+      });
+      if (!response.ok) {
+        throw new Error(`Plan generation failed: ${response.status}`);
+      }
+      const payload = await response.json();
+      setSelectedPlanText(payload.plan);
+      setGoalPlanStatus("ready");
+      await loadSnapshot();
+    } catch (err) {
+      setGoalPlanStatus(err instanceof Error ? err.message : "plan failed");
     }
   }
 
@@ -503,6 +571,69 @@ function App() {
         ) : (
           <p className="panel-copy">No report loaded yet.</p>
         )}
+      </section>
+
+      <section className="panel">
+        <h2>Goals and plans</h2>
+        <form className="goal-form" onSubmit={handleCreateGoal}>
+          <input
+            value={goalName}
+            onChange={(event) => setGoalName(event.target.value)}
+            placeholder="Goal name"
+            required
+          />
+          <input
+            value={goalMetric}
+            onChange={(event) => setGoalMetric(event.target.value)}
+            placeholder="Metric (e.g. weight_lbs)"
+            required
+          />
+          <select value={goalType} onChange={(event) => setGoalType(event.target.value)}>
+            <option value="target">target</option>
+            <option value="directional">directional</option>
+          </select>
+          {goalType === "target" ? (
+            <input
+              type="number"
+              step="0.1"
+              value={goalTargetValue}
+              onChange={(event) => setGoalTargetValue(event.target.value)}
+              placeholder="Target value"
+              required
+            />
+          ) : (
+            <select value={goalDirection} onChange={(event) => setGoalDirection(event.target.value)}>
+              <option value="down">down</option>
+              <option value="up">up</option>
+            </select>
+          )}
+          <button type="submit">Create Goal</button>
+        </form>
+        {goalStatus ? <p className="panel-copy">Status: {goalStatus}</p> : null}
+        {goalPlanStatus ? <p className="panel-copy">Plan status: {goalPlanStatus}</p> : null}
+        {goals.length === 0 ? (
+          <p className="panel-copy">No active goals yet.</p>
+        ) : (
+          <ul className="goal-list">
+            {goals.map((goal) => (
+              <li key={goal.id} className="goal-item">
+                <div className="goal-head">
+                  <strong>{goal.name}</strong>
+                  <span>{goal.metric}</span>
+                </div>
+                <p className="panel-copy">
+                  {goal.goal_type === "target"
+                    ? `Target ${goal.target_value}`
+                    : `Trend ${goal.direction}`}
+                </p>
+                <button type="button" onClick={() => handleGeneratePlan(goal.id)}>
+                  Generate Plan
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+        {selectedPlanText ? <pre className="report-preview">{selectedPlanText}</pre> : null}
       </section>
 
       <section className="content-grid">
