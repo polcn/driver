@@ -156,7 +156,9 @@ def generate_daily_digest(conn: sqlite3.Connection, *, target: date) -> dict:
     session_count = int(exercise["session_count"] or 0)
     if session_count > 0:
         duration = int(exercise["duration_min"] or 0)
-        highlights.append(f"Training: {session_count} session(s), {duration} total minutes.")
+        highlights.append(
+            f"Training: {session_count} session(s), {duration} total minutes."
+        )
     else:
         highlights.append("No workouts logged today.")
 
