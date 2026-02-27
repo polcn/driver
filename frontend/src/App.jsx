@@ -186,30 +186,31 @@ function App() {
   const [glucoseTrend, setGlucoseTrend] = useState(emptyLabTrend);
   const [supplements, setSupplements] = useState(emptySupplements);
   const [medications, setMedications] = useState(emptyMedications);
+  const [photoDescription, setPhotoDescription] = useState("");
+  const [photoUrl, setPhotoUrl] = useState("");
+  const [photoMealType, setPhotoMealType] = useState("meal");
+  const [photoStatus, setPhotoStatus] = useState("");
   const [status, setStatus] = useState("loading");
   const [error, setError] = useState("");
 
-  useEffect(() => {
-    let isActive = true;
+  async function loadSnapshot() {
+    try {
+      const [todayResponse, weekResponse] = await Promise.all([
+        fetch("/api/v1/dashboard/today"),
+        fetch("/api/v1/dashboard/week")
+      ]);
 
-    async function loadSnapshot() {
-      try {
-        const [todayResponse, weekResponse] = await Promise.all([
-          fetch("/api/v1/dashboard/today"),
-          fetch("/api/v1/dashboard/week")
-        ]);
+      if (!todayResponse.ok) {
+        throw new Error(`Today dashboard request failed: ${todayResponse.status}`);
+      }
+      if (!weekResponse.ok) {
+        throw new Error(`Week dashboard request failed: ${weekResponse.status}`);
+      }
 
-        if (!todayResponse.ok) {
-          throw new Error(`Today dashboard request failed: ${todayResponse.status}`);
-        }
-        if (!weekResponse.ok) {
-          throw new Error(`Week dashboard request failed: ${weekResponse.status}`);
-        }
-
-        const [todayPayload, weekPayload] = await Promise.all([
-          todayResponse.json(),
-          weekResponse.json()
-        ]);
+      const [todayPayload, weekPayload] = await Promise.all([
+        todayResponse.json(),
+        weekResponse.json()
+      ]);
 
         const [
           weightResponse,
@@ -245,76 +246,97 @@ function App() {
               })
           )
         ]);
-        if (!weightResponse.ok) {
-          throw new Error(`Weight trend request failed: ${weightResponse.status}`);
-        }
-        if (!waistResponse.ok) {
-          throw new Error(`Waist trend request failed: ${waistResponse.status}`);
-        }
-        if (!sleepResponse.ok) {
-          throw new Error(`Sleep request failed: ${sleepResponse.status}`);
-        }
-        if (!sleepTrendResponse.ok) {
-          throw new Error(`Sleep trend request failed: ${sleepTrendResponse.status}`);
-        }
-        if (!labsResponse.ok) {
-          throw new Error(`Labs request failed: ${labsResponse.status}`);
-        }
-        if (!triglyceridesResponse.ok) {
-          throw new Error(`Triglycerides trend request failed: ${triglyceridesResponse.status}`);
-        }
-        if (!glucoseResponse.ok) {
-          throw new Error(`Glucose trend request failed: ${glucoseResponse.status}`);
-        }
-        if (!supplementsResponse.ok) {
-          throw new Error(`Supplements request failed: ${supplementsResponse.status}`);
-        }
-        if (!medicationsResponse.ok) {
-          throw new Error(`Medications request failed: ${medicationsResponse.status}`);
-        }
-        const weightPayload = await weightResponse.json();
-        const waistPayload = await waistResponse.json();
-        const sleepPayload = await sleepResponse.json();
-        const sleepTrendPayload = await sleepTrendResponse.json();
-        const labsPayload = await labsResponse.json();
-        const triglyceridesPayload = await triglyceridesResponse.json();
-        const glucosePayload = await glucoseResponse.json();
-        const supplementsPayload = await supplementsResponse.json();
-        const medicationsPayload = await medicationsResponse.json();
-        const exerciseSetsPayload = Object.fromEntries(setsPayload);
-        if (!isActive) {
-          return;
-        }
-
-        setSnapshot(todayPayload);
-        setWeek(weekPayload);
-        setWeightTrend(weightPayload);
-        setWaistTrend(waistPayload);
-        setSleepRecord(sleepPayload);
-        setSleepTrend(sleepTrendPayload);
-        setLabs(labsPayload);
-        setTriglyceridesTrend(triglyceridesPayload);
-        setGlucoseTrend(glucosePayload);
-        setSupplements(supplementsPayload);
-        setMedications(medicationsPayload);
-        setExerciseSets(exerciseSetsPayload);
-        setStatus("ready");
-      } catch (err) {
-        if (!isActive) {
-          return;
-        }
-
-        setError(err instanceof Error ? err.message : "Unknown error");
-        setStatus("error");
+      if (!weightResponse.ok) {
+        throw new Error(`Weight trend request failed: ${weightResponse.status}`);
       }
+      if (!waistResponse.ok) {
+        throw new Error(`Waist trend request failed: ${waistResponse.status}`);
+      }
+      if (!sleepResponse.ok) {
+        throw new Error(`Sleep request failed: ${sleepResponse.status}`);
+      }
+      if (!sleepTrendResponse.ok) {
+        throw new Error(`Sleep trend request failed: ${sleepTrendResponse.status}`);
+      }
+      if (!labsResponse.ok) {
+        throw new Error(`Labs request failed: ${labsResponse.status}`);
+      }
+      if (!triglyceridesResponse.ok) {
+        throw new Error(`Triglycerides trend request failed: ${triglyceridesResponse.status}`);
+      }
+      if (!glucoseResponse.ok) {
+        throw new Error(`Glucose trend request failed: ${glucoseResponse.status}`);
+      }
+      if (!supplementsResponse.ok) {
+        throw new Error(`Supplements request failed: ${supplementsResponse.status}`);
+      }
+      if (!medicationsResponse.ok) {
+        throw new Error(`Medications request failed: ${medicationsResponse.status}`);
+      }
+      const weightPayload = await weightResponse.json();
+      const waistPayload = await waistResponse.json();
+      const sleepPayload = await sleepResponse.json();
+      const sleepTrendPayload = await sleepTrendResponse.json();
+      const labsPayload = await labsResponse.json();
+      const triglyceridesPayload = await triglyceridesResponse.json();
+      const glucosePayload = await glucoseResponse.json();
+      const supplementsPayload = await supplementsResponse.json();
+      const medicationsPayload = await medicationsResponse.json();
+      const exerciseSetsPayload = Object.fromEntries(setsPayload);
+
+      setSnapshot(todayPayload);
+      setWeek(weekPayload);
+      setWeightTrend(weightPayload);
+      setWaistTrend(waistPayload);
+      setSleepRecord(sleepPayload);
+      setSleepTrend(sleepTrendPayload);
+      setLabs(labsPayload);
+      setTriglyceridesTrend(triglyceridesPayload);
+      setGlucoseTrend(glucosePayload);
+      setSupplements(supplementsPayload);
+      setMedications(medicationsPayload);
+      setExerciseSets(exerciseSetsPayload);
+      setStatus("ready");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unknown error");
+      setStatus("error");
     }
+  }
 
+  useEffect(() => {
     loadSnapshot();
-
-    return () => {
-      isActive = false;
-    };
   }, []);
+
+  async function handlePhotoSubmit(event) {
+    event.preventDefault();
+
+    const recordedDate = snapshot.date ?? new Date().toISOString().slice(0, 10);
+    setPhotoStatus("submitting");
+    try {
+      const response = await fetch("/api/v1/food/from-photo", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          recorded_date: recordedDate,
+          meal_type: photoMealType,
+          description: photoDescription,
+          photo_url: photoUrl,
+          servings: 1.0,
+          source: "agent"
+        })
+      });
+      if (!response.ok) {
+        throw new Error(`Photo log request failed: ${response.status}`);
+      }
+
+      setPhotoStatus("saved");
+      setPhotoDescription("");
+      setPhotoUrl("");
+      await loadSnapshot();
+    } catch (err) {
+      setPhotoStatus(err instanceof Error ? err.message : "submit failed");
+    }
+  }
 
   const food = snapshot.food ?? {};
   const activity = snapshot.activity ?? {};
@@ -401,6 +423,35 @@ function App() {
           label="Active Calories"
           value={activity.active_calories}
         />
+      </section>
+
+      <section className="panel">
+        <h2>Photo food quick log</h2>
+        <p className="panel-copy">Adds an estimated entry from a photo URL and short description.</p>
+        <form className="photo-form" onSubmit={handlePhotoSubmit}>
+          <input
+            value={photoDescription}
+            onChange={(event) => setPhotoDescription(event.target.value)}
+            placeholder="Description (e.g. protein shake, salad)"
+            required
+          />
+          <input
+            value={photoUrl}
+            onChange={(event) => setPhotoUrl(event.target.value)}
+            placeholder="Photo URL"
+            required
+          />
+          <select value={photoMealType} onChange={(event) => setPhotoMealType(event.target.value)}>
+            <option value="meal">meal</option>
+            <option value="breakfast">breakfast</option>
+            <option value="lunch">lunch</option>
+            <option value="dinner">dinner</option>
+            <option value="snack">snack</option>
+            <option value="drink">drink</option>
+          </select>
+          <button type="submit">Log Photo Meal</button>
+        </form>
+        {photoStatus ? <p className="panel-copy">Status: {photoStatus}</p> : null}
       </section>
 
       <section className="content-grid">
