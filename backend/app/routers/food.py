@@ -1,9 +1,12 @@
 import sqlite3
+import json
+import os
 from datetime import date
-from typing import Optional
+from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, ConfigDict, Field
+import httpx
 
 from ..db import get_db_dependency, row_to_dict
 
@@ -77,6 +80,27 @@ class PhotoFoodCreate(BaseModel):
     photo_url: str = Field(min_length=1, max_length=800)
     servings: float = Field(default=1.0, gt=0, le=10)
     source: str = "agent"
+    use_vision: bool = True
+    model: Optional[str] = None
+    calories: Optional[float] = None
+    protein_g: Optional[float] = None
+    carbs_g: Optional[float] = None
+    fat_g: Optional[float] = None
+    fiber_g: Optional[float] = None
+    sodium_mg: Optional[float] = None
+    alcohol_g: Optional[float] = None
+    alcohol_calories: Optional[float] = None
+    alcohol_type: Optional[str] = None
+
+
+class PhotoFoodEstimateCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    description: str = Field(min_length=1, max_length=300)
+    photo_url: str = Field(min_length=1, max_length=800)
+    servings: float = Field(default=1.0, gt=0, le=10)
+    use_vision: bool = True
+    model: Optional[str] = None
 
 
 def _estimate_from_description(description: str, servings: float) -> dict:
@@ -152,6 +176,141 @@ def _estimate_from_description(description: str, servings: float) -> dict:
     }
 
 
+def _extract_json_object(text: str) -> Optional[dict[str, Any]]:
+    start = text.find("{")
+    end = text.rfind("}")
+    if start == -1 or end == -1 or end <= start:
+        return None
+    try:
+        parsed = json.loads(text[start : end + 1])
+    except json.JSONDecodeError:
+        return None
+    if not isinstance(parsed, dict):
+        return None
+    return parsed
+
+
+def _estimate_from_vision(
+    *, description: str, photo_url: str, servings: float, model: Optional[str]
+) -> Optional[dict[str, Any]]:
+    api_key = os.getenv("OPENAI_API_KEY")
+    if not api_key:
+        return None
+
+    base_url = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1").rstrip("/")
+    model_name = model or os.getenv("FOOD_VISION_MODEL", "gpt-4.1-mini")
+    prompt = (
+        "Estimate nutrition from this meal photo and short description. "
+        "Return strict JSON only with keys: name, calories, protein_g, carbs_g, fat_g, "
+        "fiber_g, sodium_mg, alcohol_g, alcohol_calories, alcohol_type, confidence. "
+        "confidence is 0..1 and should reflect estimation quality. "
+        "If alcohol type unknown, set alcohol_type to null."
+    )
+    body = {
+        "model": model_name,
+        "messages": [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": f"{prompt}\nDescription: {description}"},
+                    {"type": "image_url", "image_url": {"url": photo_url}},
+                ],
+            }
+        ],
+        "temperature": 0.1,
+        "max_tokens": 400,
+    }
+
+    try:
+        response = httpx.post(
+            f"{base_url}/chat/completions",
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+            },
+            json=body,
+            timeout=25.0,
+        )
+        response.raise_for_status()
+        payload = response.json()
+        content = payload["choices"][0]["message"]["content"]
+        parsed = _extract_json_object(content)
+        if not parsed:
+            return None
+
+        estimate = {
+            "name": str(parsed.get("name") or description),
+            "calories": float(parsed.get("calories") or 0),
+            "protein_g": float(parsed.get("protein_g") or 0),
+            "carbs_g": float(parsed.get("carbs_g") or 0),
+            "fat_g": float(parsed.get("fat_g") or 0),
+            "fiber_g": float(parsed.get("fiber_g") or 0),
+            "sodium_mg": float(parsed.get("sodium_mg") or 0),
+            "alcohol_g": float(parsed.get("alcohol_g") or 0),
+            "alcohol_calories": float(parsed.get("alcohol_calories") or 0),
+            "alcohol_type": parsed.get("alcohol_type"),
+        }
+        factor = float(servings)
+        for key, value in list(estimate.items()):
+            if isinstance(value, float):
+                estimate[key] = round(value * factor, 2)
+
+        confidence = float(parsed.get("confidence") or 0.5)
+        confidence = max(0.0, min(1.0, confidence))
+        return {
+            "estimate": estimate,
+            "method": "vision",
+            "confidence": round(confidence, 2),
+        }
+    except (httpx.HTTPError, KeyError, TypeError, ValueError):
+        return None
+
+
+def _resolve_photo_estimate(
+    *,
+    description: str,
+    photo_url: str,
+    servings: float,
+    use_vision: bool,
+    model: Optional[str],
+) -> dict[str, Any]:
+    if use_vision:
+        vision = _estimate_from_vision(
+            description=description,
+            photo_url=photo_url,
+            servings=servings,
+            model=model,
+        )
+        if vision:
+            return vision
+
+    return {
+        "estimate": _estimate_from_description(description, servings),
+        "method": "heuristic",
+        "confidence": 0.45,
+    }
+
+
+def _apply_photo_overrides(
+    estimate: dict[str, Any], entry: PhotoFoodCreate
+) -> dict[str, Any]:
+    for field in (
+        "calories",
+        "protein_g",
+        "carbs_g",
+        "fat_g",
+        "fiber_g",
+        "sodium_mg",
+        "alcohol_g",
+        "alcohol_calories",
+        "alcohol_type",
+    ):
+        value = getattr(entry, field)
+        if value is not None:
+            estimate[field] = value
+    return estimate
+
+
 @router.post("/", status_code=201)
 def create_food_entry(
     entry: FoodEntryCreate, conn: sqlite3.Connection = Depends(get_db_dependency)
@@ -194,9 +353,17 @@ def create_food_entry(
 def create_photo_food_entry(
     entry: PhotoFoodCreate, conn: sqlite3.Connection = Depends(get_db_dependency)
 ):
-    estimated = _estimate_from_description(entry.description, entry.servings)
+    analysis = _resolve_photo_estimate(
+        description=entry.description,
+        photo_url=entry.photo_url,
+        servings=entry.servings,
+        use_vision=entry.use_vision,
+        model=entry.model,
+    )
+    estimated = _apply_photo_overrides(analysis["estimate"], entry)
     notes = (
-        f"Estimated from photo input. Description: {entry.description}. "
+        f"Estimated from photo input ({analysis['method']}, confidence={analysis['confidence']}). "
+        f"Description: {entry.description}. "
         "Review and patch if needed."
     )
 
@@ -231,7 +398,26 @@ def create_photo_food_entry(
         "SELECT * FROM food_entries WHERE id=?",
         (cur.lastrowid,),
     ).fetchone()
-    return row_to_dict(row)
+    payload = row_to_dict(row)
+    payload["analysis_method"] = analysis["method"]
+    payload["analysis_confidence"] = analysis["confidence"]
+    return payload
+
+
+@router.post("/photo-estimate")
+def estimate_photo_food(entry: PhotoFoodEstimateCreate):
+    analysis = _resolve_photo_estimate(
+        description=entry.description,
+        photo_url=entry.photo_url,
+        servings=entry.servings,
+        use_vision=entry.use_vision,
+        model=entry.model,
+    )
+    return {
+        "estimate": analysis["estimate"],
+        "analysis_method": analysis["method"],
+        "analysis_confidence": analysis["confidence"],
+    }
 
 
 @router.get("/")

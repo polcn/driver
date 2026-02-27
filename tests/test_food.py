@@ -178,4 +178,43 @@ def test_food_from_photo_creates_estimated_entry_with_photo_url(client):
     assert payload["photo_url"] == "https://example.com/photo.jpg"
     assert payload["source"] == "agent"
     assert payload["protein_g"] >= 30
+    assert payload["analysis_method"] in {"heuristic", "vision"}
+    assert 0 <= payload["analysis_confidence"] <= 1
     assert "Estimated from photo input" in payload["notes"]
+
+
+def test_food_from_photo_applies_manual_overrides(client):
+    response = client.post(
+        "/api/v1/food/from-photo",
+        json={
+            "recorded_date": "2026-02-27",
+            "meal_type": "drink",
+            "description": "Protein shake",
+            "photo_url": "https://example.com/photo.jpg",
+            "servings": 1.0,
+            "source": "agent",
+            "calories": 333,
+            "protein_g": 44,
+        },
+    )
+    assert response.status_code == 201
+    payload = response.json()
+    assert payload["calories"] == 333
+    assert payload["protein_g"] == 44
+
+
+def test_photo_estimate_endpoint_returns_estimate_and_confidence(client):
+    response = client.post(
+        "/api/v1/food/photo-estimate",
+        json={
+            "description": "Salad with grilled chicken",
+            "photo_url": "https://example.com/photo.jpg",
+            "servings": 1.0,
+            "use_vision": False,
+        },
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["analysis_method"] == "heuristic"
+    assert 0 <= payload["analysis_confidence"] <= 1
+    assert payload["estimate"]["name"] == "Salad with grilled chicken"
