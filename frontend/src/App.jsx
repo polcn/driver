@@ -240,17 +240,17 @@ function App() {
           goalsResponse,
           setsPayload
         ] = await Promise.all([
-          fetch(`/api/v1/metrics?metric=weight_lbs&days=14&ending=${todayPayload.date}`),
-          fetch(`/api/v1/metrics?metric=waist_in&days=14&ending=${todayPayload.date}`),
-          fetch(`/api/v1/sleep?recorded_date=${todayPayload.date}`),
-          fetch(`/api/v1/sleep?days=14&ending=${todayPayload.date}`),
-          fetch("/api/v1/labs"),
-          fetch("/api/v1/labs?marker=Triglycerides"),
-          fetch("/api/v1/labs?marker=Glucose"),
-          fetch("/api/v1/supplements"),
-          fetch("/api/v1/medications"),
+          fetch(`/api/v1/metrics/?metric=weight_lbs&days=14&ending=${todayPayload.date}`),
+          fetch(`/api/v1/metrics/?metric=waist_in&days=14&ending=${todayPayload.date}`),
+          fetch(`/api/v1/sleep/?recorded_date=${todayPayload.date}`),
+          fetch(`/api/v1/sleep/?days=14&ending=${todayPayload.date}`),
+          fetch("/api/v1/labs/"),
+          fetch("/api/v1/labs/?marker=Triglycerides"),
+          fetch("/api/v1/labs/?marker=Glucose"),
+          fetch("/api/v1/supplements/"),
+          fetch("/api/v1/medications/"),
           fetch(`/api/v1/reports/doctor-visit?days=${reportDays}&ending=${todayPayload.date}`),
-          fetch("/api/v1/goals"),
+          fetch("/api/v1/goals/"),
           Promise.all(
             (todayPayload.exercise ?? [])
               .filter(isStrengthSession)
