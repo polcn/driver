@@ -3,7 +3,7 @@ from datetime import date
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict, Field
 
 from ..db import get_db_dependency, row_to_dict
 
@@ -68,6 +68,90 @@ class FoodEntryUpdate(BaseModel):
     notes: Optional[str] = None
 
 
+class PhotoFoodCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    recorded_date: date
+    meal_type: str = "meal"
+    description: str = Field(min_length=1, max_length=300)
+    photo_url: str = Field(min_length=1, max_length=800)
+    servings: float = Field(default=1.0, gt=0, le=10)
+    source: str = "agent"
+
+
+def _estimate_from_description(description: str, servings: float) -> dict:
+    text = description.lower()
+    base = {
+        "name": description,
+        "calories": 450.0,
+        "protein_g": 28.0,
+        "carbs_g": 35.0,
+        "fat_g": 18.0,
+        "fiber_g": 5.0,
+        "sodium_mg": 700.0,
+        "alcohol_g": 0.0,
+        "alcohol_calories": 0.0,
+        "alcohol_type": None,
+    }
+
+    if "shake" in text or "protein" in text:
+        base.update(
+            {
+                "calories": 260.0,
+                "protein_g": 35.0,
+                "carbs_g": 12.0,
+                "fat_g": 6.0,
+                "fiber_g": 2.0,
+                "sodium_mg": 220.0,
+            }
+        )
+    elif "salad" in text:
+        base.update(
+            {
+                "calories": 320.0,
+                "protein_g": 18.0,
+                "carbs_g": 20.0,
+                "fat_g": 16.0,
+                "fiber_g": 7.0,
+                "sodium_mg": 460.0,
+            }
+        )
+    elif "beer" in text:
+        base.update(
+            {
+                "calories": 150.0,
+                "protein_g": 1.5,
+                "carbs_g": 13.0,
+                "fat_g": 0.0,
+                "fiber_g": 0.0,
+                "sodium_mg": 15.0,
+                "alcohol_g": 14.0,
+                "alcohol_calories": 98.0,
+                "alcohol_type": "beer",
+            }
+        )
+    elif "wine" in text:
+        base.update(
+            {
+                "calories": 125.0,
+                "protein_g": 0.2,
+                "carbs_g": 4.0,
+                "fat_g": 0.0,
+                "fiber_g": 0.0,
+                "sodium_mg": 10.0,
+                "alcohol_g": 14.0,
+                "alcohol_calories": 98.0,
+                "alcohol_type": "wine",
+            }
+        )
+
+    factor = float(servings)
+    return {
+        key: round(value * factor, 2) if isinstance(value, float) else value
+        for key, value in base.items()
+    }
+
+
 @router.post("/", status_code=201)
 def create_food_entry(
     entry: FoodEntryCreate, conn: sqlite3.Connection = Depends(get_db_dependency)
@@ -96,6 +180,50 @@ def create_food_entry(
             int(entry.is_estimated),
             entry.source,
             entry.notes,
+        ),
+    )
+    conn.commit()
+    row = conn.execute(
+        "SELECT * FROM food_entries WHERE id=?",
+        (cur.lastrowid,),
+    ).fetchone()
+    return row_to_dict(row)
+
+
+@router.post("/from-photo", status_code=201)
+def create_photo_food_entry(
+    entry: PhotoFoodCreate, conn: sqlite3.Connection = Depends(get_db_dependency)
+):
+    estimated = _estimate_from_description(entry.description, entry.servings)
+    notes = (
+        f"Estimated from photo input. Description: {entry.description}. "
+        "Review and patch if needed."
+    )
+
+    cur = conn.execute(
+        """INSERT INTO food_entries
+           (recorded_date, meal_type, name, calories, protein_g, carbs_g, fat_g,
+            fiber_g, sodium_mg, alcohol_g, alcohol_calories, alcohol_type,
+            photo_url, servings, is_estimated, source, notes)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+        (
+            str(entry.recorded_date),
+            entry.meal_type,
+            estimated["name"],
+            estimated["calories"],
+            estimated["protein_g"],
+            estimated["carbs_g"],
+            estimated["fat_g"],
+            estimated["fiber_g"],
+            estimated["sodium_mg"],
+            estimated["alcohol_g"],
+            estimated["alcohol_calories"],
+            estimated["alcohol_type"],
+            entry.photo_url,
+            entry.servings,
+            1,
+            entry.source,
+            notes,
         ),
     )
     conn.commit()
