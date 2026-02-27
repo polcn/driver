@@ -1,5 +1,6 @@
 import sqlite3
 import os
+from collections.abc import Generator
 from pathlib import Path
 
 DATABASE_PATH = os.getenv("DATABASE_PATH", "/data/driver.db")
@@ -11,6 +12,18 @@ def get_db() -> sqlite3.Connection:
     conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA foreign_keys=ON")
     return conn
+
+
+def get_db_dependency() -> Generator[sqlite3.Connection, None, None]:
+    conn = get_db()
+    try:
+        yield conn
+    finally:
+        conn.close()
+
+
+def row_to_dict(row) -> dict:
+    return dict(row)
 
 
 def init_db():
