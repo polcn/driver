@@ -17,6 +17,7 @@ const emptyWeek = {
 };
 
 const emptyWeightTrend = [];
+const emptyWaistTrend = [];
 const emptyExerciseSets = {};
 
 function MetricCard({ label, value, target, unit }) {
@@ -130,6 +131,7 @@ function App() {
   const [snapshot, setSnapshot] = useState(emptySnapshot);
   const [week, setWeek] = useState(emptyWeek);
   const [weightTrend, setWeightTrend] = useState(emptyWeightTrend);
+  const [waistTrend, setWaistTrend] = useState(emptyWaistTrend);
   const [exerciseSets, setExerciseSets] = useState(emptyExerciseSets);
   const [status, setStatus] = useState("loading");
   const [error, setError] = useState("");
@@ -156,8 +158,9 @@ function App() {
           weekResponse.json()
         ]);
 
-        const [weightResponse, setsPayload] = await Promise.all([
+        const [weightResponse, waistResponse, setsPayload] = await Promise.all([
           fetch(`/api/v1/metrics?metric=weight_lbs&days=14&ending=${todayPayload.date}`),
+          fetch(`/api/v1/metrics?metric=waist_in&days=14&ending=${todayPayload.date}`),
           Promise.all(
             (todayPayload.exercise ?? [])
               .filter(isStrengthSession)
@@ -174,7 +177,11 @@ function App() {
         if (!weightResponse.ok) {
           throw new Error(`Weight trend request failed: ${weightResponse.status}`);
         }
+        if (!waistResponse.ok) {
+          throw new Error(`Waist trend request failed: ${waistResponse.status}`);
+        }
         const weightPayload = await weightResponse.json();
+        const waistPayload = await waistResponse.json();
         const exerciseSetsPayload = Object.fromEntries(setsPayload);
         if (!isActive) {
           return;
@@ -183,6 +190,7 @@ function App() {
         setSnapshot(todayPayload);
         setWeek(weekPayload);
         setWeightTrend(weightPayload);
+        setWaistTrend(waistPayload);
         setExerciseSets(exerciseSetsPayload);
         setStatus("ready");
       } catch (err) {
@@ -206,9 +214,12 @@ function App() {
   const targets = snapshot.targets ?? {};
   const weeklyFood = buildWeeklyFoodSeries(week);
   const weightSeries = buildWeightSeries(weightTrend);
+  const waistSeries = buildWeightSeries(waistTrend);
   const exerciseSummary = formatExerciseSummary(snapshot.exercise);
   const latestWeight = weightSeries.length > 0 ? weightSeries[weightSeries.length - 1].value : null;
   const weightChange = weightSeries.length > 1 ? weightSeries[weightSeries.length - 1].offset : null;
+  const latestWaist = waistSeries.length > 0 ? waistSeries[waistSeries.length - 1].value : null;
+  const waistChange = waistSeries.length > 1 ? waistSeries[waistSeries.length - 1].offset : null;
 
   return (
     <main className="page-shell">
@@ -283,6 +294,29 @@ function App() {
               ))}
             </div>
           )}
+        </article>
+
+        <article className="panel">
+          <h2>Waist trend</h2>
+          <p className="panel-value">
+            {latestWaist == null ? "No entry" : `${latestWaist}"`}
+          </p>
+          <p className="panel-copy">
+            {latestWaist == null
+              ? "Log waist measurements through `/api/v1/metrics`."
+              : `${waistChange == null ? "First logged measurement." : `${waistChange > 0 ? "+" : ""}${waistChange}" vs first point`}`}
+          </p>
+          {waistSeries.length > 0 ? (
+            <div className="trend-chart trend-chart-waist" aria-label="Waist trend">
+              {waistSeries.map((entry) => (
+                <div key={`${entry.recorded_date}-${entry.created_at}`} className="trend-column">
+                  <span className="trend-value">{entry.value}</span>
+                  <span className="trend-bar trend-bar-waist" style={{ height: `${entry.height}%` }} />
+                  <span className="trend-label">{entry.recorded_date.slice(5)}</span>
+                </div>
+              ))}
+            </div>
+          ) : null}
         </article>
 
         <article className="panel">

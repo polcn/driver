@@ -203,6 +203,15 @@ body {
   background: linear-gradient(180deg, #2b5960 0%, #d9a15b 100%);
 }
 
+.trend-chart-waist {
+  min-height: 160px;
+  margin-top: 12px;
+}
+
+.trend-bar-waist {
+  background: linear-gradient(180deg, #8f6b2c 0%, #56766b 100%);
+}
+
 .detail-list {
   display: grid;
   gap: 12px;

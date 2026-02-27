@@ -15,7 +15,7 @@ Tracks food intake, exercise, sleep, bloodwork, body metrics, supplements, and m
 This repository currently contains:
 
 - A FastAPI backend
-- A minimal React + Vite frontend scaffold for the Today dashboard, including weight trend and weekly intake views
+- A minimal React + Vite frontend scaffold for the Today dashboard, including weight and waist trends plus weekly intake views
 - A SQLite schema covering the planned health domains
 - Food endpoints, body metrics endpoints, exercise session/set endpoints, and basic dashboard aggregate endpoints
 - GitHub Actions for linting, tests, dependency audit, and CodeQL
