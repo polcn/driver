@@ -7,7 +7,9 @@ DATABASE_PATH = os.getenv("DATABASE_PATH", "/data/driver.db")
 
 
 def get_db() -> sqlite3.Connection:
-    conn = sqlite3.connect(DATABASE_PATH)
+    # FastAPI may resolve dependency lifecycle and endpoint execution on different threads.
+    # Disable SQLite thread affinity checks for request-scoped connections.
+    conn = sqlite3.connect(DATABASE_PATH, check_same_thread=False)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA foreign_keys=ON")
