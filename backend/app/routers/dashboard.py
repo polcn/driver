@@ -23,7 +23,7 @@ def get_today(target_date: str = None):
                 ROUND(SUM(alcohol_calories), 0) as alcohol_calories,
                 COUNT(*) as entry_count
                FROM food_entries WHERE recorded_date=? AND deleted_at IS NULL""",
-            (today,)
+            (today,),
         ).fetchone()
 
         # Targets
@@ -33,26 +33,33 @@ def get_today(target_date: str = None):
                    SELECT MAX(t2.effective_date) FROM targets t2
                    WHERE t2.metric = t1.metric AND t2.effective_date <= ?
                )""",
-            (today,)
+            (today,),
         ).fetchall()
         targets = {r["metric"]: r["value"] for r in targets_rows}
 
         # Exercise
         exercise = conn.execute(
-            "SELECT * FROM exercise_sessions WHERE recorded_date=? AND deleted_at IS NULL ORDER BY created_at",
-            (today,)
+            """SELECT *
+               FROM exercise_sessions
+               WHERE recorded_date=?
+                 AND deleted_at IS NULL
+               ORDER BY created_at""",
+            (today,),
         ).fetchall()
 
         # Sleep (last night)
         sleep = conn.execute(
-            "SELECT * FROM sleep_records WHERE recorded_date=? ORDER BY created_at DESC LIMIT 1",
-            (today,)
+            """SELECT *
+               FROM sleep_records
+               WHERE recorded_date=?
+               ORDER BY created_at DESC
+               LIMIT 1""",
+            (today,),
         ).fetchone()
 
         # Daily suggestion
         suggestion = conn.execute(
-            "SELECT * FROM daily_suggestions WHERE suggestion_date=?",
-            (today,)
+            "SELECT * FROM daily_suggestions WHERE suggestion_date=?", (today,)
         ).fetchone()
 
         return {
@@ -82,7 +89,7 @@ def get_week_summary(ending: str = None):
                FROM food_entries
                WHERE recorded_date BETWEEN ? AND ? AND deleted_at IS NULL
                GROUP BY recorded_date ORDER BY recorded_date""",
-            (str(start), str(end))
+            (str(start), str(end)),
         ).fetchall()
 
         exercise_rows = conn.execute(
@@ -90,7 +97,7 @@ def get_week_summary(ending: str = None):
                FROM exercise_sessions
                WHERE recorded_date BETWEEN ? AND ? AND deleted_at IS NULL
                GROUP BY recorded_date, session_type""",
-            (str(start), str(end))
+            (str(start), str(end)),
         ).fetchall()
 
         return {

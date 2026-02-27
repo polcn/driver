@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import Optional
-from datetime import date, datetime
+from datetime import date
 
 from ..db import get_db
 
@@ -60,14 +60,31 @@ def create_food_entry(entry: FoodEntryCreate):
                 fiber_g, sodium_mg, alcohol_g, alcohol_calories, alcohol_type,
                 photo_url, servings, is_estimated, source, notes)
                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
-            (str(entry.recorded_date), entry.meal_type, entry.name,
-             entry.calories, entry.protein_g, entry.carbs_g, entry.fat_g,
-             entry.fiber_g, entry.sodium_mg, entry.alcohol_g, entry.alcohol_calories,
-             entry.alcohol_type, entry.photo_url,
-             entry.servings, int(entry.is_estimated), entry.source, entry.notes)
+            (
+                str(entry.recorded_date),
+                entry.meal_type,
+                entry.name,
+                entry.calories,
+                entry.protein_g,
+                entry.carbs_g,
+                entry.fat_g,
+                entry.fiber_g,
+                entry.sodium_mg,
+                entry.alcohol_g,
+                entry.alcohol_calories,
+                entry.alcohol_type,
+                entry.photo_url,
+                entry.servings,
+                int(entry.is_estimated),
+                entry.source,
+                entry.notes,
+            ),
         )
         conn.commit()
-        row = conn.execute("SELECT * FROM food_entries WHERE id=?", (cur.lastrowid,)).fetchone()
+        row = conn.execute(
+            "SELECT * FROM food_entries WHERE id=?",
+            (cur.lastrowid,),
+        ).fetchone()
         return row_to_dict(row)
     finally:
         conn.close()
@@ -79,12 +96,20 @@ def get_food_entries(date: Optional[str] = None):
     try:
         if date:
             rows = conn.execute(
-                "SELECT * FROM food_entries WHERE recorded_date=? AND deleted_at IS NULL ORDER BY created_at",
-                (date,)
+                """SELECT *
+                   FROM food_entries
+                   WHERE recorded_date=?
+                     AND deleted_at IS NULL
+                   ORDER BY created_at""",
+                (date,),
             ).fetchall()
         else:
             rows = conn.execute(
-                "SELECT * FROM food_entries WHERE deleted_at IS NULL ORDER BY recorded_date DESC, created_at DESC LIMIT 100"
+                """SELECT *
+                   FROM food_entries
+                   WHERE deleted_at IS NULL
+                   ORDER BY recorded_date DESC, created_at DESC
+                   LIMIT 100"""
             ).fetchall()
         return [row_to_dict(r) for r in rows]
     finally:
@@ -107,7 +132,7 @@ def get_daily_summary(date: str):
                 ROUND(SUM(alcohol_calories), 0) as alcohol_calories
                FROM food_entries
                WHERE recorded_date=? AND deleted_at IS NULL""",
-            (date,)
+            (date,),
         ).fetchone()
 
         targets = conn.execute(
@@ -116,7 +141,7 @@ def get_daily_summary(date: str):
                    SELECT MAX(t2.effective_date) FROM targets t2
                    WHERE t2.metric = t1.metric AND t2.effective_date <= ?
                )""",
-            (date,)
+            (date,),
         ).fetchall()
         target_map = {r["metric"]: r["value"] for r in targets}
 
@@ -128,6 +153,37 @@ def get_daily_summary(date: str):
             "sodium_mg": target_map.get("sodium_mg"),
         }
         return result
+    finally:
+        conn.close()
+
+
+@router.get("/summary/week")
+def get_weekly_summary(ending: str):
+    conn = get_db()
+    try:
+        rows = conn.execute(
+            """SELECT
+                recorded_date,
+                COUNT(*) as entry_count,
+                ROUND(SUM(calories), 1) as calories,
+                ROUND(SUM(protein_g), 1) as protein_g,
+                ROUND(SUM(carbs_g), 1) as carbs_g,
+                ROUND(SUM(fat_g), 1) as fat_g,
+                ROUND(SUM(fiber_g), 1) as fiber_g,
+                ROUND(SUM(sodium_mg), 0) as sodium_mg,
+                ROUND(SUM(alcohol_calories), 0) as alcohol_calories
+               FROM food_entries
+               WHERE recorded_date BETWEEN date(?, '-6 days') AND ?
+                 AND deleted_at IS NULL
+               GROUP BY recorded_date
+               ORDER BY recorded_date""",
+            (ending, ending),
+        ).fetchall()
+
+        return {
+            "ending": ending,
+            "days": [row_to_dict(row) for row in rows],
+        }
     finally:
         conn.close()
 
@@ -150,7 +206,10 @@ def update_food_entry(entry_id: int, update: FoodEntryUpdate):
         values = list(fields.values()) + [entry_id]
         conn.execute(f"UPDATE food_entries SET {set_clause} WHERE id=?", values)
         conn.commit()
-        row = conn.execute("SELECT * FROM food_entries WHERE id=?", (entry_id,)).fetchone()
+        row = conn.execute(
+            "SELECT * FROM food_entries WHERE id=?",
+            (entry_id,),
+        ).fetchone()
         return row_to_dict(row)
     finally:
         conn.close()
