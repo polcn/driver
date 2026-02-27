@@ -35,3 +35,5 @@ Branch protection is enforced on `main`. Merges should wait for:
 - Required status checks to pass (`backend`, `frontend`, `analyze (python)`)
 - Any additional enabled checks to pass (for example `dependency-review`, `actionlint`)
 - Any required review/conversation rules to be satisfied in GitHub branch protection
+
+Dependabot patch/minor PRs are eligible for auto-merge after required checks pass.
