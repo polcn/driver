@@ -67,7 +67,10 @@ def create_food_entry(entry: FoodEntryCreate):
              entry.servings, int(entry.is_estimated), entry.source, entry.notes)
         )
         conn.commit()
-        row = conn.execute("SELECT * FROM food_entries WHERE id=?", (cur.lastrowid,)).fetchone()
+        row = conn.execute(
+            "SELECT * FROM food_entries WHERE id=?",
+            (cur.lastrowid,),
+        ).fetchone()
         return row_to_dict(row)
     finally:
         conn.close()
@@ -79,12 +82,20 @@ def get_food_entries(date: Optional[str] = None):
     try:
         if date:
             rows = conn.execute(
-                "SELECT * FROM food_entries WHERE recorded_date=? AND deleted_at IS NULL ORDER BY created_at",
+                """SELECT *
+                   FROM food_entries
+                   WHERE recorded_date=?
+                     AND deleted_at IS NULL
+                   ORDER BY created_at""",
                 (date,)
             ).fetchall()
         else:
             rows = conn.execute(
-                "SELECT * FROM food_entries WHERE deleted_at IS NULL ORDER BY recorded_date DESC, created_at DESC LIMIT 100"
+                """SELECT *
+                   FROM food_entries
+                   WHERE deleted_at IS NULL
+                   ORDER BY recorded_date DESC, created_at DESC
+                   LIMIT 100"""
             ).fetchall()
         return [row_to_dict(r) for r in rows]
     finally:
@@ -181,7 +192,10 @@ def update_food_entry(entry_id: int, update: FoodEntryUpdate):
         values = list(fields.values()) + [entry_id]
         conn.execute(f"UPDATE food_entries SET {set_clause} WHERE id=?", values)
         conn.commit()
-        row = conn.execute("SELECT * FROM food_entries WHERE id=?", (entry_id,)).fetchone()
+        row = conn.execute(
+            "SELECT * FROM food_entries WHERE id=?",
+            (entry_id,),
+        ).fetchone()
         return row_to_dict(row)
     finally:
         conn.close()

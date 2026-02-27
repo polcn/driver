@@ -43,7 +43,10 @@ def test_food_entry_lifecycle(client):
     delete_response = client.delete(f"/api/v1/food/{entry_id}")
     assert delete_response.status_code == 204
 
-    post_delete_summary = client.get("/api/v1/food/summary", params={"date": "2026-02-27"})
+    post_delete_summary = client.get(
+        "/api/v1/food/summary",
+        params={"date": "2026-02-27"},
+    )
     assert post_delete_summary.status_code == 200
     assert post_delete_summary.json()["entry_count"] == 0
 
@@ -69,15 +72,21 @@ def test_food_list_excludes_soft_deleted_entries(client):
     assert response.json() == []
 
 
-def test_food_summary_uses_latest_effective_target_for_each_metric(client, db_module_fixture):
+def test_food_summary_uses_latest_effective_target_for_each_metric(
+    client, db_module_fixture
+):
     conn = db_module_fixture.get_db()
     try:
         conn.execute(
-            "INSERT INTO targets (metric, value, effective_date, notes) VALUES (?, ?, ?, ?)",
+            """INSERT INTO targets
+               (metric, value, effective_date, notes)
+               VALUES (?, ?, ?, ?)""",
             ("calories", 1900, "2026-02-26", "updated target"),
         )
         conn.execute(
-            "INSERT INTO targets (metric, value, effective_date, notes) VALUES (?, ?, ?, ?)",
+            """INSERT INTO targets
+               (metric, value, effective_date, notes)
+               VALUES (?, ?, ?, ?)""",
             ("protein_g", 200, "2026-02-28", "future target"),
         )
         conn.commit()

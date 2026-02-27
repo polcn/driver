@@ -15,7 +15,10 @@ def test_dashboard_today_includes_food_targets_and_empty_sections(client):
     )
     assert create_response.status_code == 201
 
-    response = client.get("/api/v1/dashboard/today", params={"target_date": "2026-02-27"})
+    response = client.get(
+        "/api/v1/dashboard/today",
+        params={"target_date": "2026-02-27"},
+    )
 
     assert response.status_code == 200
     payload = response.json()

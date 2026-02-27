@@ -39,13 +39,21 @@ def get_today(target_date: str = None):
 
         # Exercise
         exercise = conn.execute(
-            "SELECT * FROM exercise_sessions WHERE recorded_date=? AND deleted_at IS NULL ORDER BY created_at",
+            """SELECT *
+               FROM exercise_sessions
+               WHERE recorded_date=?
+                 AND deleted_at IS NULL
+               ORDER BY created_at""",
             (today,)
         ).fetchall()
 
         # Sleep (last night)
         sleep = conn.execute(
-            "SELECT * FROM sleep_records WHERE recorded_date=? ORDER BY created_at DESC LIMIT 1",
+            """SELECT *
+               FROM sleep_records
+               WHERE recorded_date=?
+               ORDER BY created_at DESC
+               LIMIT 1""",
             (today,)
         ).fetchone()
 
