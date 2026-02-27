@@ -17,7 +17,7 @@ This repository currently contains:
 - A FastAPI backend
 - A minimal React + Vite frontend scaffold for the Today dashboard, including weight trend and weekly intake views
 - A SQLite schema covering the planned health domains
-- Food endpoints, body metrics endpoints, and basic dashboard aggregate endpoints
+- Food endpoints, body metrics endpoints, exercise session endpoints, and basic dashboard aggregate endpoints
 - GitHub Actions for linting, tests, dependency audit, and CodeQL
 
 This repository does not currently contain:

@@ -51,4 +51,4 @@ python3 scripts/migrate_health_db.py /path/to/health.db /path/to/driver.db
 - `docker-compose.yml` starts both the API service and the minimal frontend scaffold
 - The SQLite database defaults to `/data/driver.db` in Docker and can be overridden with `DATABASE_PATH`
 - Tests use an isolated temporary SQLite database per test run
-- The backend currently exposes food, dashboard, and body metrics routes
+- The backend currently exposes food, exercise session, dashboard, and body metrics routes
