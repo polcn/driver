@@ -593,6 +593,14 @@ Based on max HR formula: 220 - age (56) = **164 bpm**
 - [x] Week/trend views in dashboard
 - [x] API error handling + validation hardening
 
+### Phase 5 — Goals + Visit Prep + Photo Flow *(~1 week)*
+- [x] Goals API + goal plans API (CRUD + generated plan scaffold)
+- [x] Dashboard: Goals panel (create goal + generate plan)
+- [x] Doctor visit report API (`/api/v1/reports/doctor-visit`)
+- [x] Dashboard: doctor report viewer + refresh controls
+- [x] Photo food logging API (`/api/v1/food/from-photo`)
+- [x] Dashboard: photo food quick-log form
+
 ---
 
 ## 13. Open Decisions
