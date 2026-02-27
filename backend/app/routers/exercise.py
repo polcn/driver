@@ -1,7 +1,7 @@
 from datetime import date
 from typing import Optional
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from ..db import get_db
@@ -18,6 +18,14 @@ class ExerciseSessionCreate(BaseModel):
     avg_heart_rate: Optional[int] = None
     max_heart_rate: Optional[int] = None
     source: str = "manual"
+    notes: Optional[str] = None
+
+
+class ExerciseSetCreate(BaseModel):
+    exercise_name: str
+    set_number: int
+    weight_lbs: Optional[float] = None
+    reps: Optional[int] = None
     notes: Optional[str] = None
 
 
@@ -87,6 +95,76 @@ def get_exercise_sessions(date: Optional[date] = None):
                 (str(date),),
             ).fetchall()
 
+        return [row_to_dict(row) for row in rows]
+    finally:
+        conn.close()
+
+
+@router.post("/sessions/{session_id}/sets", status_code=201)
+def create_exercise_set(session_id: int, entry: ExerciseSetCreate):
+    conn = get_db()
+    try:
+        session = conn.execute(
+            """SELECT id
+               FROM exercise_sessions
+               WHERE id = ?
+                 AND deleted_at IS NULL""",
+            (session_id,),
+        ).fetchone()
+        if session is None:
+            raise HTTPException(status_code=404, detail="Exercise session not found")
+
+        cur = conn.execute(
+            """INSERT INTO exercise_sets
+               (
+                 session_id,
+                 exercise_name,
+                 set_number,
+                 weight_lbs,
+                 reps,
+                 notes
+               )
+               VALUES (?, ?, ?, ?, ?, ?)""",
+            (
+                session_id,
+                entry.exercise_name,
+                entry.set_number,
+                entry.weight_lbs,
+                entry.reps,
+                entry.notes,
+            ),
+        )
+        conn.commit()
+        row = conn.execute(
+            "SELECT * FROM exercise_sets WHERE id=?",
+            (cur.lastrowid,),
+        ).fetchone()
+        return row_to_dict(row)
+    finally:
+        conn.close()
+
+
+@router.get("/sessions/{session_id}/sets")
+def get_exercise_sets(session_id: int):
+    conn = get_db()
+    try:
+        session = conn.execute(
+            """SELECT id
+               FROM exercise_sessions
+               WHERE id = ?
+                 AND deleted_at IS NULL""",
+            (session_id,),
+        ).fetchone()
+        if session is None:
+            raise HTTPException(status_code=404, detail="Exercise session not found")
+
+        rows = conn.execute(
+            """SELECT *
+               FROM exercise_sets
+               WHERE session_id = ?
+               ORDER BY exercise_name, set_number, id""",
+            (session_id,),
+        ).fetchall()
         return [row_to_dict(row) for row in rows]
     finally:
         conn.close()

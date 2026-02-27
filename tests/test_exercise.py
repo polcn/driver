@@ -76,3 +76,77 @@ def test_exercise_session_list_without_date_returns_recent_entries(client):
     assert len(payload) == 2
     assert payload[0]["recorded_date"] == "2026-02-27"
     assert payload[1]["recorded_date"] == "2026-02-25"
+
+
+def test_exercise_sets_create_and_list_for_session(client):
+    session_response = client.post(
+        "/api/v1/exercise/sessions",
+        json={
+            "recorded_date": "2026-02-27",
+            "session_type": "strength",
+            "name": "Push day",
+            "duration_min": 60,
+            "source": "manual",
+        },
+    )
+    session_id = session_response.json()["id"]
+
+    first_set = client.post(
+        f"/api/v1/exercise/sessions/{session_id}/sets",
+        json={
+            "exercise_name": "Bench press",
+            "set_number": 1,
+            "weight_lbs": 185,
+            "reps": 5,
+            "notes": "smooth",
+        },
+    )
+    assert first_set.status_code == 201
+
+    second_set = client.post(
+        f"/api/v1/exercise/sessions/{session_id}/sets",
+        json={
+            "exercise_name": "Bench press",
+            "set_number": 2,
+            "weight_lbs": 185,
+            "reps": 4,
+        },
+    )
+    assert second_set.status_code == 201
+
+    response = client.get(f"/api/v1/exercise/sessions/{session_id}/sets")
+    assert response.status_code == 200
+    assert response.json() == [
+        {
+            "id": first_set.json()["id"],
+            "session_id": session_id,
+            "exercise_name": "Bench press",
+            "set_number": 1,
+            "weight_lbs": 185.0,
+            "reps": 5,
+            "notes": "smooth",
+        },
+        {
+            "id": second_set.json()["id"],
+            "session_id": session_id,
+            "exercise_name": "Bench press",
+            "set_number": 2,
+            "weight_lbs": 185.0,
+            "reps": 4,
+            "notes": None,
+        },
+    ]
+
+
+def test_exercise_sets_require_existing_session(client):
+    response = client.post(
+        "/api/v1/exercise/sessions/999/sets",
+        json={
+            "exercise_name": "Bench press",
+            "set_number": 1,
+            "weight_lbs": 185,
+            "reps": 5,
+        },
+    )
+    assert response.status_code == 404
+    assert response.json() == {"detail": "Exercise session not found"}
