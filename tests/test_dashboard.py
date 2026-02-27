@@ -133,3 +133,45 @@ def test_dashboard_today_returns_narrative_insights_for_sleep_and_alcohol(client
         "Alcohol intake coincided with lower sleep quality" in insight
         for insight in insights
     )
+
+
+def test_dashboard_today_returns_hr_zone_narrative_insight(client, db_module_fixture):
+    for recorded_date, name in [
+        ("2026-02-22", "Bike 1"),
+        ("2026-02-24", "Bike 2"),
+        ("2026-02-26", "Bike 3"),
+    ]:
+        session_response = client.post(
+            "/api/v1/exercise/sessions",
+            json={
+                "recorded_date": recorded_date,
+                "session_type": "cardio",
+                "name": name,
+                "duration_min": 40,
+                "source": "manual",
+            },
+        )
+        assert session_response.status_code == 201
+
+        session_id = session_response.json()["id"]
+        conn = db_module_fixture.get_db()
+        try:
+            conn.execute(
+                """INSERT INTO exercise_hr_zones (session_id, zone, minutes, pct_of_session)
+                   VALUES (?, 2, 12, 30), (?, 3, 28, 70)""",
+                (session_id, session_id),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
+    response = client.get(
+        "/api/v1/dashboard/today",
+        params={"target_date": "2026-02-27"},
+    )
+    assert response.status_code == 200
+    insights = response.json()["insights"]
+    assert any(
+        "target at least 50% for aerobic base/fat-burn work" in insight
+        for insight in insights
+    )

@@ -82,6 +82,43 @@ def _build_narrative_insights(conn, today: date) -> list[str]:
             f"Alcohol intake coincided with lower sleep quality on {low_sleep_after_alcohol} of the last {alcohol_nights} drinking nights."
         )
 
+    cardio_zone_rows = conn.execute(
+        """SELECT
+               s.id,
+               s.recorded_date,
+               COALESCE(SUM(CASE WHEN z.zone IN (1, 2) THEN z.minutes ELSE 0 END), 0) AS zone12_minutes,
+               COALESCE(SUM(z.minutes), 0) AS total_minutes
+           FROM exercise_sessions s
+           LEFT JOIN exercise_hr_zones z
+             ON z.session_id = s.id
+           WHERE s.recorded_date BETWEEN date(?, '-13 days') AND ?
+             AND s.deleted_at IS NULL
+             AND s.session_type = 'cardio'
+           GROUP BY s.id, s.recorded_date
+           HAVING COALESCE(SUM(z.minutes), 0) > 0
+           ORDER BY s.recorded_date""",
+        (today_str, today_str),
+    ).fetchall()
+
+    zone12_pcts = [
+        (row["zone12_minutes"] / row["total_minutes"]) * 100.0
+        for row in cardio_zone_rows
+    ]
+    if zone12_pcts:
+        recent = zone12_pcts[-3:]
+        recent_avg = sum(recent) / len(recent)
+        prior = zone12_pcts[:-3]
+        prior_avg = (sum(prior[-3:]) / len(prior[-3:])) if prior else None
+
+        if recent_avg < 50:
+            insights.append(
+                f"Recent cardio sessions averaged {recent_avg:.0f}% in Zone 1-2; target at least 50% for aerobic base/fat-burn work."
+            )
+        elif prior_avg is not None and recent_avg >= prior_avg + 10:
+            insights.append(
+                f"Zone 1-2 cardio time is improving ({prior_avg:.0f}% → {recent_avg:.0f}% across recent sessions)."
+            )
+
     return insights[:3]
 
 
