@@ -160,15 +160,13 @@ def get_trends(days: int = Query(default=90, ge=1, le=3650), ending: str = None)
             """SELECT bm.recorded_date, bm.metric, bm.value
                FROM body_metrics bm
                JOIN (
-                    SELECT recorded_date, metric, MAX(created_at) as max_created_at
+                    SELECT recorded_date, metric, MAX(id) as max_id
                     FROM body_metrics
                     WHERE metric IN ('weight_lbs', 'waist_in')
                       AND recorded_date BETWEEN ? AND ?
                     GROUP BY recorded_date, metric
                ) latest
-                 ON bm.recorded_date = latest.recorded_date
-                AND bm.metric = latest.metric
-                AND bm.created_at = latest.max_created_at
+                 ON bm.id = latest.max_id
                ORDER BY bm.recorded_date""",
             (str(start), str(end)),
         ).fetchall()
