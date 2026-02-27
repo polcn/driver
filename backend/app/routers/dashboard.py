@@ -1,4 +1,4 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Query
 from datetime import date, timedelta
 
 from ..db import get_db
@@ -105,6 +105,94 @@ def get_week_summary(ending: str = None):
             "end": str(end),
             "food_by_day": [dict(r) for r in rows],
             "exercise_by_day": [dict(r) for r in exercise_rows],
+        }
+    finally:
+        conn.close()
+
+
+@router.get("/trends")
+def get_trends(days: int = Query(default=90, ge=1, le=3650), ending: str = None):
+    end = date.fromisoformat(ending) if ending else date.today()
+    start = end - timedelta(days=days - 1)
+    conn = get_db()
+    try:
+        food_rows = conn.execute(
+            """SELECT recorded_date,
+                      ROUND(SUM(calories), 0) as calories,
+                      ROUND(SUM(protein_g), 1) as protein_g,
+                      ROUND(SUM(sodium_mg), 0) as sodium_mg,
+                      ROUND(SUM(alcohol_calories), 0) as alcohol_calories
+               FROM food_entries
+               WHERE recorded_date BETWEEN ? AND ?
+                 AND deleted_at IS NULL
+               GROUP BY recorded_date
+               ORDER BY recorded_date""",
+            (str(start), str(end)),
+        ).fetchall()
+
+        exercise_rows = conn.execute(
+            """SELECT recorded_date,
+                      COUNT(*) as sessions,
+                      COALESCE(SUM(duration_min), 0) as duration_min,
+                      ROUND(SUM(calories_burned), 1) as calories_burned
+               FROM exercise_sessions
+               WHERE recorded_date BETWEEN ? AND ?
+                 AND deleted_at IS NULL
+               GROUP BY recorded_date
+               ORDER BY recorded_date""",
+            (str(start), str(end)),
+        ).fetchall()
+
+        sleep_rows = conn.execute(
+            """SELECT recorded_date,
+                      duration_min,
+                      sleep_score,
+                      hrv,
+                      resting_hr,
+                      readiness_score
+               FROM sleep_records
+               WHERE recorded_date BETWEEN ? AND ?
+               ORDER BY recorded_date""",
+            (str(start), str(end)),
+        ).fetchall()
+
+        metrics_rows = conn.execute(
+            """SELECT bm.recorded_date, bm.metric, bm.value
+               FROM body_metrics bm
+               JOIN (
+                    SELECT recorded_date, metric, MAX(created_at) as max_created_at
+                    FROM body_metrics
+                    WHERE metric IN ('weight_lbs', 'waist_in')
+                      AND recorded_date BETWEEN ? AND ?
+                    GROUP BY recorded_date, metric
+               ) latest
+                 ON bm.recorded_date = latest.recorded_date
+                AND bm.metric = latest.metric
+                AND bm.created_at = latest.max_created_at
+               ORDER BY bm.recorded_date""",
+            (str(start), str(end)),
+        ).fetchall()
+
+        weight = [
+            {"recorded_date": row["recorded_date"], "value": row["value"]}
+            for row in metrics_rows
+            if row["metric"] == "weight_lbs"
+        ]
+        waist = [
+            {"recorded_date": row["recorded_date"], "value": row["value"]}
+            for row in metrics_rows
+            if row["metric"] == "waist_in"
+        ]
+
+        return {
+            "start": str(start),
+            "end": str(end),
+            "days": days,
+            "food_by_day": [dict(r) for r in food_rows],
+            "exercise_by_day": [dict(r) for r in exercise_rows],
+            "sleep_by_day": [dict(r) for r in sleep_rows],
+            "weight_by_day": weight,
+            "waist_by_day": waist,
         }
     finally:
         conn.close()
