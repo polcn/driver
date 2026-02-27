@@ -34,7 +34,8 @@ def create_lab_result(
         and entry.reference_low > entry.reference_high
     ):
         raise HTTPException(
-            status_code=422, detail="reference_low cannot be greater than reference_high"
+            status_code=422,
+            detail="reference_low cannot be greater than reference_high",
         )
 
     cur = conn.execute(
@@ -118,7 +119,8 @@ def update_lab_result(
         and entry.reference_low > entry.reference_high
     ):
         raise HTTPException(
-            status_code=422, detail="reference_low cannot be greater than reference_high"
+            status_code=422,
+            detail="reference_low cannot be greater than reference_high",
         )
 
     existing = conn.execute(
