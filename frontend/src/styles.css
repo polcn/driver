@@ -259,6 +259,46 @@ body {
   color: #5c646a;
 }
 
+.set-list {
+  list-style: none;
+  padding: 0;
+  margin: 12px 0 0;
+  display: grid;
+  gap: 10px;
+}
+
+.set-item {
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.56);
+  border: 1px solid rgba(24, 33, 38, 0.08);
+}
+
+.set-title-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: baseline;
+}
+
+.set-number {
+  font-family: "Courier New", monospace;
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #5f6c74;
+}
+
+.set-meta,
+.set-note {
+  margin: 6px 0 0;
+  color: #5c646a;
+}
+
+.set-note {
+  font-style: italic;
+}
+
 @media (max-width: 900px) {
   .hero,
   .grid,

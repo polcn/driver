@@ -17,6 +17,7 @@ const emptyWeek = {
 };
 
 const emptyWeightTrend = [];
+const emptyExerciseSets = {};
 
 function MetricCard({ label, value, target, unit }) {
   const displayValue = value ?? 0;
@@ -71,6 +72,31 @@ function formatExerciseMeta(session) {
   return bits.length > 0 ? bits.join(" · ") : "No session details yet.";
 }
 
+function isStrengthSession(session) {
+  const value = `${session.session_type ?? ""} ${session.name ?? ""}`.toLowerCase();
+  return (
+    value.includes("strength") ||
+    value.includes("push") ||
+    value.includes("pull") ||
+    value.includes("legs") ||
+    value.includes("upper") ||
+    value.includes("lower")
+  );
+}
+
+function formatSetSummary(set) {
+  const bits = [];
+
+  if (set.weight_lbs != null) {
+    bits.push(`${set.weight_lbs} lbs`);
+  }
+  if (set.reps != null) {
+    bits.push(`${set.reps} reps`);
+  }
+
+  return bits.length > 0 ? bits.join(" x ") : "Logged set";
+}
+
 function buildWeeklyFoodSeries(week) {
   const maxCalories = Math.max(
     1,
@@ -104,6 +130,7 @@ function App() {
   const [snapshot, setSnapshot] = useState(emptySnapshot);
   const [week, setWeek] = useState(emptyWeek);
   const [weightTrend, setWeightTrend] = useState(emptyWeightTrend);
+  const [exerciseSets, setExerciseSets] = useState(emptyExerciseSets);
   const [status, setStatus] = useState("loading");
   const [error, setError] = useState("");
 
@@ -129,13 +156,26 @@ function App() {
           weekResponse.json()
         ]);
 
-        const weightResponse = await fetch(
-          `/api/v1/metrics?metric=weight_lbs&days=14&ending=${todayPayload.date}`
-        );
+        const [weightResponse, setsPayload] = await Promise.all([
+          fetch(`/api/v1/metrics?metric=weight_lbs&days=14&ending=${todayPayload.date}`),
+          Promise.all(
+            (todayPayload.exercise ?? [])
+              .filter(isStrengthSession)
+              .map(async (session) => {
+                const response = await fetch(`/api/v1/exercise/sessions/${session.id}/sets`);
+                if (!response.ok) {
+                  throw new Error(`Exercise set request failed: ${response.status}`);
+                }
+
+                return [session.id, await response.json()];
+              })
+          )
+        ]);
         if (!weightResponse.ok) {
           throw new Error(`Weight trend request failed: ${weightResponse.status}`);
         }
         const weightPayload = await weightResponse.json();
+        const exerciseSetsPayload = Object.fromEntries(setsPayload);
         if (!isActive) {
           return;
         }
@@ -143,6 +183,7 @@ function App() {
         setSnapshot(todayPayload);
         setWeek(weekPayload);
         setWeightTrend(weightPayload);
+        setExerciseSets(exerciseSetsPayload);
         setStatus("ready");
       } catch (err) {
         if (!isActive) {
@@ -281,6 +322,23 @@ function App() {
                     <span className="session-type">{session.session_type}</span>
                   </div>
                   <p className="session-meta">{formatExerciseMeta(session)}</p>
+                  {(exerciseSets[session.id] ?? []).length > 0 ? (
+                    <ul className="set-list">
+                      {exerciseSets[session.id].map((set) => (
+                        <li
+                          key={`${set.session_id}-${set.exercise_name}-${set.set_number}-${set.id}`}
+                          className="set-item"
+                        >
+                          <div className="set-title-row">
+                            <strong>{set.exercise_name}</strong>
+                            <span className="set-number">Set {set.set_number}</span>
+                          </div>
+                          <p className="set-meta">{formatSetSummary(set)}</p>
+                          {set.notes ? <p className="set-note">{set.notes}</p> : null}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : null}
                 </li>
               ))}
             </ul>
