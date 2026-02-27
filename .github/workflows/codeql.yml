@@ -24,44 +24,13 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
 
-      - name: Detect code scanning mode
-        id: code-scanning-mode
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          response="$(curl -sS -H "Authorization: Bearer ${GH_TOKEN}" -H "Accept: application/vnd.github+json" "https://api.github.com/repos/${GITHUB_REPOSITORY}/code-scanning/default-setup" -w '\n%{http_code}')"
-          http_code="$(printf '%s\n' "${response}" | tail -n1)"
-          body="$(printf '%s\n' "${response}" | sed '$d')"
-
-          if [ "${http_code}" != "200" ]; then
-            echo "enabled=false" >> "${GITHUB_OUTPUT}"
-            echo "state=unknown" >> "${GITHUB_OUTPUT}"
-            exit 0
-          fi
-
-          state="$(printf '%s' "${body}" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("state",""))')"
-          echo "state=${state}" >> "${GITHUB_OUTPUT}"
-          if [ "${state}" = "configured" ]; then
-            echo "enabled=true" >> "${GITHUB_OUTPUT}"
-          else
-            echo "enabled=false" >> "${GITHUB_OUTPUT}"
-          fi
-
       - name: Initialize CodeQL
-        if: steps.code-scanning-mode.outputs.enabled != 'true'
         uses: github/codeql-action/init@v3
         with:
           languages: ${{ matrix.language }}
 
       - name: Autobuild
-        if: steps.code-scanning-mode.outputs.enabled != 'true'
         uses: github/codeql-action/autobuild@v3
 
       - name: Perform CodeQL analysis
-        if: steps.code-scanning-mode.outputs.enabled != 'true'
         uses: github/codeql-action/analyze@v3
-
-      - name: Skip advanced CodeQL upload
-        if: steps.code-scanning-mode.outputs.enabled == 'true'
-        run: echo "Default code scanning setup is enabled; skipping advanced workflow upload."
