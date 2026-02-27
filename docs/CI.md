@@ -4,6 +4,9 @@
 
 - `CI`: installs backend dependencies, compiles Python sources, runs `ruff`, runs `pytest`, and audits dependencies with `pip-audit`
 - `CodeQL`: GitHub code scanning for Python
+- `Dependency Review`: blocks risky dependency changes in pull requests
+- `Workflow Lint`: lints GitHub Actions workflows with `actionlint`
+- `Auto Merge`: enables auto-merge for trusted `codex/*` pull requests targeting `main`
 
 ## Required branch protection
 
@@ -22,3 +25,8 @@ Recommended additional settings:
 - Require branches to be up to date before merging
 - Block force pushes
 - Do not allow branch deletion
+
+Optional additional required checks:
+
+- `dependency-review`
+- `actionlint`

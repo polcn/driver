@@ -30,9 +30,8 @@ If your change touches the frontend scaffold, make sure `make frontend-smoke` st
 
 ## Manual merge policy
 
-This private repository cannot currently enforce branch protection under the active GitHub plan. Until that changes, merges to `main` should wait for:
+Branch protection is enforced on `main`. Merges should wait for:
 
-- `CI` to pass
-- `CodeQL` to pass
-- At least one human review
-- Any open review conversations to be resolved
+- Required status checks to pass (`backend`, `frontend`, `analyze (python)`)
+- Any additional enabled checks to pass (for example `dependency-review`, `actionlint`)
+- Any required review/conversation rules to be satisfied in GitHub branch protection
