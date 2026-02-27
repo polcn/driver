@@ -177,11 +177,26 @@ def get_today(target_date: str = None):
         suggestion = conn.execute(
             "SELECT * FROM daily_suggestions WHERE suggestion_date=?", (today,)
         ).fetchone()
+        activity_rows = conn.execute(
+            """SELECT bm.metric, bm.value
+               FROM body_metrics bm
+               JOIN (
+                    SELECT metric, MAX(id) AS max_id
+                    FROM body_metrics
+                    WHERE recorded_date = ?
+                      AND metric IN ('steps', 'active_calories')
+                    GROUP BY metric
+               ) latest
+                 ON bm.id = latest.max_id""",
+            (today,),
+        ).fetchall()
+        activity = {row["metric"]: row["value"] for row in activity_rows}
         insights = _build_narrative_insights(conn, date.fromisoformat(today))
 
         return {
             "date": today,
             "food": dict(food) if food else {},
+            "activity": activity,
             "targets": targets,
             "exercise": [dict(e) for e in exercise],
             "sleep": dict(sleep) if sleep else None,

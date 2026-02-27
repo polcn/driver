@@ -25,6 +25,7 @@ def test_dashboard_today_includes_food_targets_and_empty_sections(client):
     assert payload["date"] == "2026-02-27"
     assert payload["food"]["entry_count"] == 1
     assert payload["food"]["calories"] == 620
+    assert payload["activity"] == {}
     assert payload["targets"]["calories"] == 2000
     assert payload["exercise"] == []
     assert payload["sleep"] is None
@@ -82,6 +83,37 @@ def test_dashboard_week_groups_food_and_exercise_by_day(client):
         },
     ]
     assert payload["exercise_by_day"] == []
+
+
+def test_dashboard_today_includes_steps_and_active_calories_from_metrics(client):
+    steps_response = client.post(
+        "/api/v1/metrics",
+        json={
+            "recorded_date": "2026-02-27",
+            "metric": "steps",
+            "value": 9842,
+            "source": "oura",
+        },
+    )
+    assert steps_response.status_code == 201
+
+    active_response = client.post(
+        "/api/v1/metrics",
+        json={
+            "recorded_date": "2026-02-27",
+            "metric": "active_calories",
+            "value": 612,
+            "source": "oura",
+        },
+    )
+    assert active_response.status_code == 201
+
+    response = client.get(
+        "/api/v1/dashboard/today",
+        params={"target_date": "2026-02-27"},
+    )
+    assert response.status_code == 200
+    assert response.json()["activity"] == {"active_calories": 612.0, "steps": 9842.0}
 
 
 def test_dashboard_today_returns_narrative_insights_for_sleep_and_alcohol(client):
