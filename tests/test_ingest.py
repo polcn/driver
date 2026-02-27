@@ -343,7 +343,186 @@ def test_ingest_allows_two_same_day_same_name_workouts_with_different_start_time
         conn.close()
 
 
-def test_oura_stub_endpoint(client):
-    response = client.post("/api/v1/ingest/oura")
+def test_oura_ingest_creates_sleep_from_sleep_and_readiness_payload(
+    client, db_module_fixture
+):
+    payload = {
+        "sleep": [
+            {
+                "day": "2026-03-06",
+                "bedtime_start": "2026-03-05T22:40:00",
+                "bedtime_end": "2026-03-06T06:40:00",
+                "total_sleep_duration": 28800,
+                "deep_sleep_duration": 5400,
+                "rem_sleep_duration": 6600,
+                "light_sleep_duration": 15000,
+                "awake_time": 1800,
+                "score": 82,
+            }
+        ],
+        "readiness": [
+            {
+                "day": "2026-03-06",
+                "score": 77,
+                "average_hrv": 39.2,
+                "resting_heart_rate": 52,
+            }
+        ],
+    }
+    response = client.post("/api/v1/ingest/oura", json=payload)
     assert response.status_code == 200
-    assert response.json() == {"status": "coming_soon"}
+    assert response.json()["status"] == "ok"
+    assert response.json()["processed"]["sleep"] == 1
+    assert response.json()["processed"]["readiness"] == 1
+
+    conn = db_module_fixture.get_db()
+    try:
+        row = conn.execute(
+            """SELECT recorded_date, duration_min, deep_min, rem_min, core_min, awake_min,
+                      readiness_score, sleep_score, hrv, resting_hr, source
+               FROM sleep_records
+               WHERE recorded_date='2026-03-06'"""
+        ).fetchone()
+        assert dict(row) == {
+            "recorded_date": "2026-03-06",
+            "duration_min": 480,
+            "deep_min": 90,
+            "rem_min": 110,
+            "core_min": 250,
+            "awake_min": 30,
+            "readiness_score": 77,
+            "sleep_score": 82,
+            "hrv": 39.2,
+            "resting_hr": 52,
+            "source": "oura",
+        }
+    finally:
+        conn.close()
+
+
+def test_oura_ingest_resync_updates_existing_oura_row(client, db_module_fixture):
+    initial_payload = {
+        "sleep": [{"day": "2026-03-07", "total_sleep_duration": 25200, "score": 70}],
+        "readiness": [{"day": "2026-03-07", "score": 65, "average_hrv": 31.5}],
+    }
+    updated_payload = {
+        "sleep": [{"day": "2026-03-07", "total_sleep_duration": 27000, "score": 74}],
+        "readiness": [{"day": "2026-03-07", "score": 71, "average_hrv": 36.4}],
+    }
+
+    assert client.post("/api/v1/ingest/oura", json=initial_payload).status_code == 200
+    assert client.post("/api/v1/ingest/oura", json=updated_payload).status_code == 200
+
+    conn = db_module_fixture.get_db()
+    try:
+        row = conn.execute(
+            """SELECT duration_min, sleep_score, readiness_score, hrv, source
+               FROM sleep_records
+               WHERE recorded_date='2026-03-07'"""
+        ).fetchone()
+        assert dict(row) == {
+            "duration_min": 450,
+            "sleep_score": 74,
+            "readiness_score": 71,
+            "hrv": 36.4,
+            "source": "oura",
+        }
+    finally:
+        conn.close()
+
+
+def test_oura_ingest_overwrites_existing_apple_health_sleep_record(
+    client, db_module_fixture
+):
+    client.post(
+        "/api/v1/ingest/apple-health",
+        json={
+            "data": {
+                "metrics": [
+                    {
+                        "name": "sleep_analysis",
+                        "units": "hr",
+                        "data": [{"date": "2026-03-08", "qty": 6.2}],
+                    }
+                ],
+                "workouts": [],
+            }
+        },
+    )
+
+    response = client.post(
+        "/api/v1/ingest/oura",
+        json={
+            "sleep": [
+                {"day": "2026-03-08", "total_sleep_duration": 27600, "score": 79}
+            ],
+            "readiness": [{"day": "2026-03-08", "score": 75}],
+        },
+    )
+    assert response.status_code == 200
+
+    conn = db_module_fixture.get_db()
+    try:
+        row = conn.execute(
+            """SELECT duration_min, sleep_score, readiness_score, source
+               FROM sleep_records
+               WHERE recorded_date='2026-03-08'"""
+        ).fetchone()
+        assert dict(row) == {
+            "duration_min": 460,
+            "sleep_score": 79,
+            "readiness_score": 75,
+            "source": "oura",
+        }
+    finally:
+        conn.close()
+
+
+def test_oura_ingest_skips_manual_sleep_record(client, db_module_fixture):
+    client.post(
+        "/api/v1/sleep",
+        json={"recorded_date": "2026-03-09", "duration_min": 430, "source": "manual"},
+    )
+
+    response = client.post(
+        "/api/v1/ingest/oura",
+        json={"sleep": [{"day": "2026-03-09", "total_sleep_duration": 30000}]},
+    )
+    assert response.status_code == 200
+    assert response.json()["processed"]["skipped"] >= 1
+
+    conn = db_module_fixture.get_db()
+    try:
+        row = conn.execute(
+            "SELECT duration_min, source FROM sleep_records WHERE recorded_date='2026-03-09'"
+        ).fetchone()
+        assert dict(row) == {"duration_min": 430, "source": "manual"}
+    finally:
+        conn.close()
+
+
+def test_oura_ingest_upserts_activity_metrics(client, db_module_fixture):
+    payload = {
+        "activity": [
+            {"day": "2026-03-10", "active_calories": 510, "steps": 10234},
+            {"day": "2026-03-10", "active_calories": 530, "steps": 10400},
+        ]
+    }
+    response = client.post("/api/v1/ingest/oura", json=payload)
+    assert response.status_code == 200
+    assert response.json()["processed"]["activity"] == 4
+
+    conn = db_module_fixture.get_db()
+    try:
+        rows = conn.execute(
+            """SELECT metric, value
+               FROM body_metrics
+               WHERE recorded_date='2026-03-10' AND source='oura'
+               ORDER BY metric"""
+        ).fetchall()
+        assert [dict(row) for row in rows] == [
+            {"metric": "active_calories", "value": 530.0},
+            {"metric": "steps", "value": 10400.0},
+        ]
+    finally:
+        conn.close()
