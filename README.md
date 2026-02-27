@@ -19,10 +19,10 @@ This repository currently contains:
 - A SQLite schema covering the planned health domains
 - Food endpoints, body metrics endpoints, exercise session/set endpoints, sleep endpoints, and basic dashboard aggregate endpoints
 - GitHub Actions for linting, tests, dependency audit, and CodeQL
+- Oura ingest endpoint and scheduled sync workflow scaffold (`.github/workflows/oura-sync.yml`)
 
 This repository does not currently contain:
 
-- Oura sync jobs
 - Apple Health ingest jobs
 - Most non-food API routes from the PRD
 
