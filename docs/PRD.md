@@ -43,6 +43,7 @@ The system is designed to be built incrementally, with each phase delivering wor
 - Flexible: supports both hard targets (≤3 drinks/week) and directional (trending down)
 - User-adjustable at any time — no hardcoded targets
 - Initial goals: weight loss, reduce alcohol, reduce sodium, reduce fat
+- **Goal plans**: when a goal is set, Driver + agent generate an actionable plan (deficit targets, macro adjustments, exercise recommendations, timeline). Plan adapts if progress is off track.
 
 ### Dashboard — Desktop
 Card-based layout, not static — interactive time range selectors (7d / 30d / 90d / 6mo / all time) on all trend charts:
@@ -303,6 +304,15 @@ One user: Craig. The agent (McGrupp) is a non-human client of the API.
 | target_date | DATE | nullable |
 | active | INTEGER | 0/1 |
 | notes | TEXT | nullable |
+| created_at | DATETIME | |
+
+#### `goal_plans`
+| Column | Type | Notes |
+|--------|------|-------|
+| id | INTEGER PK | |
+| goal_id | INTEGER FK → goals | |
+| plan | TEXT | AI-generated plan in markdown |
+| version | INTEGER | increments when plan is revised |
 | created_at | DATETIME | |
 
 ---
