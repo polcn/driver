@@ -25,6 +25,8 @@ const emptySleepRecord = null;
 const emptySleepTrend = [];
 const emptyLabs = [];
 const emptyLabTrend = [];
+const emptySupplements = [];
+const emptyMedications = [];
 
 function MetricCard({ label, value, target, unit }) {
   const displayValue = value ?? 0;
@@ -182,6 +184,8 @@ function App() {
   const [labs, setLabs] = useState(emptyLabs);
   const [triglyceridesTrend, setTriglyceridesTrend] = useState(emptyLabTrend);
   const [glucoseTrend, setGlucoseTrend] = useState(emptyLabTrend);
+  const [supplements, setSupplements] = useState(emptySupplements);
+  const [medications, setMedications] = useState(emptyMedications);
   const [status, setStatus] = useState("loading");
   const [error, setError] = useState("");
 
@@ -215,6 +219,8 @@ function App() {
           labsResponse,
           triglyceridesResponse,
           glucoseResponse,
+          supplementsResponse,
+          medicationsResponse,
           setsPayload
         ] = await Promise.all([
           fetch(`/api/v1/metrics?metric=weight_lbs&days=14&ending=${todayPayload.date}`),
@@ -224,6 +230,8 @@ function App() {
           fetch("/api/v1/labs"),
           fetch("/api/v1/labs?marker=Triglycerides"),
           fetch("/api/v1/labs?marker=Glucose"),
+          fetch("/api/v1/supplements"),
+          fetch("/api/v1/medications"),
           Promise.all(
             (todayPayload.exercise ?? [])
               .filter(isStrengthSession)
@@ -258,6 +266,12 @@ function App() {
         if (!glucoseResponse.ok) {
           throw new Error(`Glucose trend request failed: ${glucoseResponse.status}`);
         }
+        if (!supplementsResponse.ok) {
+          throw new Error(`Supplements request failed: ${supplementsResponse.status}`);
+        }
+        if (!medicationsResponse.ok) {
+          throw new Error(`Medications request failed: ${medicationsResponse.status}`);
+        }
         const weightPayload = await weightResponse.json();
         const waistPayload = await waistResponse.json();
         const sleepPayload = await sleepResponse.json();
@@ -265,6 +279,8 @@ function App() {
         const labsPayload = await labsResponse.json();
         const triglyceridesPayload = await triglyceridesResponse.json();
         const glucosePayload = await glucoseResponse.json();
+        const supplementsPayload = await supplementsResponse.json();
+        const medicationsPayload = await medicationsResponse.json();
         const exerciseSetsPayload = Object.fromEntries(setsPayload);
         if (!isActive) {
           return;
@@ -279,6 +295,8 @@ function App() {
         setLabs(labsPayload);
         setTriglyceridesTrend(triglyceridesPayload);
         setGlucoseTrend(glucosePayload);
+        setSupplements(supplementsPayload);
+        setMedications(medicationsPayload);
         setExerciseSets(exerciseSetsPayload);
         setStatus("ready");
       } catch (err) {
@@ -623,6 +641,69 @@ function App() {
               </div>
             </>
           ) : null}
+        </article>
+      </section>
+
+      <section className="content-grid lower-grid">
+        <article className="panel">
+          <h2>Active supplements</h2>
+          {supplements.length === 0 ? (
+            <p className="panel-copy">No active supplements found.</p>
+          ) : (
+            <ul className="care-list">
+              {supplements.map((item) => (
+                <li key={item.id} className="care-item">
+                  <div className="care-title-row">
+                    <strong>{item.name}</strong>
+                    <span className="care-dose">{item.dose}</span>
+                  </div>
+                  <p className="care-meta">{item.frequency || "No frequency set"}</p>
+                  {item.notes ? <p className="care-note">{item.notes}</p> : null}
+                </li>
+              ))}
+            </ul>
+          )}
+        </article>
+
+        <article className="panel">
+          <h2>Active medications</h2>
+          {medications.length === 0 ? (
+            <p className="panel-copy">No active medications found.</p>
+          ) : (
+            <ul className="care-list">
+              {medications.map((item) => (
+                <li key={item.id} className="care-item">
+                  <div className="care-title-row">
+                    <strong>{item.name}</strong>
+                    <span className="care-dose">{item.dose}</span>
+                  </div>
+                  <p className="care-meta">{item.frequency || "No frequency set"}</p>
+                  <p className="care-meta">
+                    {item.prescriber ? `Prescriber: ${item.prescriber}` : "No prescriber set"}
+                  </p>
+                  {item.notes ? <p className="care-note">{item.notes}</p> : null}
+                </li>
+              ))}
+            </ul>
+          )}
+        </article>
+
+        <article className="panel">
+          <h2>Care plan snapshot</h2>
+          <dl className="detail-list">
+            <div>
+              <dt>Supplements</dt>
+              <dd>{supplements.length}</dd>
+            </div>
+            <div>
+              <dt>Medications</dt>
+              <dd>{medications.length}</dd>
+            </div>
+            <div>
+              <dt>Total active</dt>
+              <dd>{supplements.length + medications.length}</dd>
+            </div>
+          </dl>
         </article>
       </section>
     </main>
