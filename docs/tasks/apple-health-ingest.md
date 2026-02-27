@@ -102,13 +102,14 @@ Session type mapping:
 
 Fields:
 - `recorded_date` = date portion of `start`
+- `external_id` = `apple_health:{start}` (unique idempotency key for Apple workout events)
 - `duration_min` = duration / 60
 - `calories_burned` = activeEnergy.qty
 - `avg_heart_rate` = mean of heartRateData[].qty (if present)
 - `max_heart_rate` = max of heartRateData[].qty (if present)
 - `source` = "apple_health"
 
-Dedupe: INSERT OR IGNORE on (recorded_date, name, source).
+Dedupe: INSERT OR IGNORE on `(source, external_id)`.
 
 #### HR Zone calculation (after inserting exercise_session):
 Max HR = 164 bpm (220 - 56)
@@ -116,9 +117,9 @@ Max HR = 164 bpm (220 - 56)
 | Zone | BPM Range |
 |------|-----------|
 | 1 | < 98 |
-| 2 | 98-115 |
-| 3 | 115-131 |
-| 4 | 131-148 |
+| 2 | 98 <= bpm < 115 |
+| 3 | 115 <= bpm < 131 |
+| 4 | 131 <= bpm < 148 |
 | 5 | >= 148 |
 
 From heartRateData time series:
@@ -131,7 +132,7 @@ From heartRateData time series:
 #### Idempotency:
 - `body_metrics`: INSERT OR REPLACE on (recorded_date, metric, source)
 - `sleep_records`: INSERT OR IGNORE
-- `exercise_sessions`: INSERT OR IGNORE on (recorded_date, name, source)
+- `exercise_sessions`: INSERT OR IGNORE on (source, external_id)
 
 #### Response:
 ```json
@@ -151,6 +152,25 @@ app.include_router(ingest.router, prefix="/api/v1/ingest", tags=["ingest"])
 
 Add Oura stub: `POST /api/v1/ingest/oura` → `{"status": "coming_soon"}`
 
+### `backend/schema.sql`
+Add schema support required for true idempotency:
+
+1. `body_metrics` unique index:
+```sql
+CREATE UNIQUE INDEX IF NOT EXISTS uq_body_metrics_recorded_metric_source
+ON body_metrics(recorded_date, metric, source);
+```
+
+2. `exercise_sessions` idempotency key:
+```sql
+-- add `external_id TEXT` to exercise_sessions table definition
+-- for existing databases, run:
+ALTER TABLE exercise_sessions ADD COLUMN external_id TEXT;
+CREATE UNIQUE INDEX IF NOT EXISTS uq_exercise_source_external_id
+ON exercise_sessions(source, external_id)
+WHERE external_id IS NOT NULL;
+```
+
 ---
 
 ## Tests: `tests/test_ingest.py`
@@ -160,8 +180,10 @@ Add Oura stub: `POST /api/v1/ingest/oura` → `{"status": "coming_soon"}`
 3. POST same data twice → no duplicates
 4. POST sleep_analysis → sleep_records created
 5. POST sleep_analysis when oura record exists → oura NOT overwritten
-6. POST workout with no heartRateData → session created, no hr_zones, no crash
-7. HR zone calc: all HR in Zone 2 → 100% Zone 2
+6. POST sleep_analysis first, then Oura sleep record POST/upsert → Oura wins (record replaced with source=`oura`)
+7. POST workout with no heartRateData → session created, no hr_zones, no crash
+8. HR zone calc: all HR in Zone 2 → 100% Zone 2
+9. Two same-day workouts with same name but different `start` values both persist (no false dedupe)
 
 ---
 
@@ -171,7 +193,7 @@ Add Oura stub: `POST /api/v1/ingest/oura` → `{"status": "coming_soon"}`
 body_metrics (id, recorded_date DATE, metric TEXT, value REAL, source TEXT, notes TEXT, created_at)
 exercise_sessions (id, recorded_date DATE, session_type TEXT, name TEXT, duration_min INTEGER,
                    calories_burned REAL, avg_heart_rate INTEGER, max_heart_rate INTEGER,
-                   source TEXT, notes TEXT, created_at, deleted_at)
+                   source TEXT, external_id TEXT, notes TEXT, created_at, deleted_at)
 exercise_hr_zones (id, session_id INTEGER FK, zone INTEGER 1-5, minutes REAL, pct_of_session REAL)
 sleep_records (id, recorded_date DATE UNIQUE, duration_min INTEGER, hrv REAL, resting_hr INTEGER,
                readiness_score INTEGER, sleep_score INTEGER, cpap_ahi REAL, cpap_hours REAL,
