@@ -233,6 +233,15 @@ body {
   background: linear-gradient(180deg, #4b678c 0%, #7f8f4c 100%);
 }
 
+.trend-chart-labs {
+  min-height: 120px;
+  margin-bottom: 12px;
+}
+
+.trend-bar-labs {
+  background: linear-gradient(180deg, #81603b 0%, #4f6e89 100%);
+}
+
 .detail-list {
   display: grid;
   gap: 12px;

@@ -561,36 +561,36 @@ Based on max HR formula: 220 - age (56) = **164 bpm**
 ## 12. Build Phases
 
 ### Phase 1 — Foundation *(~1 week)*
-- [ ] Docker setup: FastAPI + SQLite
-- [ ] Full schema creation (`schema.sql`)
-- [ ] Core food API endpoints (POST, GET, summary)
-- [ ] Migrate existing health.db data
-- [ ] Basic React scaffold: Today view (food only)
+- [x] Docker setup: FastAPI + SQLite
+- [x] Full schema creation (`schema.sql`)
+- [x] Core food API endpoints (POST, GET, summary)
+- [x] Migrate existing health.db data
+- [x] Basic React scaffold: Today view (food only)
 - [ ] Health agent v0.1: log food via API
 
 ### Phase 2 — Exercise + Sleep *(~1 week)*
-- [ ] Exercise API (sessions + sets + HR zones)
-- [ ] Sleep API
-- [ ] Oura sync job (sleep + readiness + HRV)
-- [ ] Health Auto Export REST API ingest endpoint + Apple Watch HR zone calculation
-- [ ] One-time historical import (all-time export via Health Auto Export)
-- [ ] Dashboard: Exercise view (session history + zone breakdown chart) + Sleep view
+- [x] Exercise API (sessions + sets + HR zones)
+- [x] Sleep API
+- [x] Oura sync job (sleep + readiness + HRV)
+- [x] Health Auto Export REST API ingest endpoint + Apple Watch HR zone calculation
+- [x] One-time historical import (all-time export via Health Auto Export)
+- [x] Dashboard: Exercise view (session history + zone breakdown chart) + Sleep view
 - [ ] Health agent: log workouts, query sleep
 
 ### Phase 3 — Labs, Metrics, Medical *(~1 week)*
-- [ ] Labs API + body metrics API
-- [ ] Medical history API (CRUD)
-- [ ] Dashboard: Labs & Metrics view, trends charts
-- [ ] Backfill known bloodwork (Feb 2026 panel)
-- [ ] Supplements/medications API
+- [x] Labs API + body metrics API
+- [x] Medical history API (CRUD)
+- [x] Dashboard: Labs & Metrics view, trends charts
+- [x] Backfill known bloodwork (Feb 2026 panel)
+- [x] Supplements/medications API
 
 ### Phase 4 — Training Intelligence + Polish *(~1 week)*
-- [ ] Daily suggestion engine (Oura readiness + HRV + schedule → morning suggestion)
-- [ ] Dashboard: HR zone trend view, weekly training summary, daily suggestion card
+- [x] Daily suggestion engine (Oura readiness + HRV + schedule → morning suggestion)
+- [x] Dashboard: HR zone trend view, weekly training summary, daily suggestion card
 - [ ] Dashboard: Supplements/Meds view
 - [ ] Health agent v1.0: full query support, week summaries, relay daily suggestion
 - [ ] PWA manifest + mobile optimization
-- [ ] Week/trend views in dashboard
+- [x] Week/trend views in dashboard
 - [ ] API error handling + validation hardening
 
 ---
@@ -620,8 +620,8 @@ Based on max HR formula: 220 - age (56) = **164 bpm**
 
 ---
 
-*PRD status: DRAFT v0.5 — pending Craig review*
-*Next step: Phase 1 kickoff — Docker + schema + food API*
+*PRD status: Active v0.7 — Phase 3 complete, Phase 4 in progress*
+*Next step: Phase 4 completion (supplements/meds dashboard, agent integration, PWA polish)*
 
 ---
 ## Changelog
@@ -632,3 +632,5 @@ Based on max HR formula: 220 - age (56) = **164 bpm**
 | 0.3 | 2026-02-27 | User requirements interview complete — dashboard layout, insights, goals system, proactive Telegram delivery, voice capture project scoped, medical history seeded, `goals` table added |
 | 0.4 | 2026-02-27 | Added photo food logging, alcohol by type, CPAP via Google Drive (parser built, 282 nights), doctor visit prep, body measurements, AI Q&A spec, symptom ingestion from Oura |
 | 0.5 | 2026-02-27 | PRD review fixes: added `goals` + `goal_plans` tables to schema; added CPAP detail columns (`cpap_ahi`, `cpap_hours`, `cpap_leak_95`, `cpap_pressure_avg`) to `sleep_records`; added `alcohol_type` and `photo_url` to `food_entries`; added `max_heart_rate` to `exercise_sessions` spec; noted UNIQUE constraint on `sleep_records.recorded_date`; fixed port numbers to match docker-compose (8100/8101); fixed targets query to correctly return latest per metric; fixed PATCH handler to support field clearing |
+| 0.6 | 2026-02-27 | Implemented Oura + Apple Health ingest endpoints/jobs, dashboard trends/range controls, and daily suggestion automation |
+| 0.7 | 2026-02-27 | Completed Phase 3 build scope: labs API, supplements/medications APIs, medical history CRUD, labs/metrics dashboard slice, and Feb 2026 bloodwork backfill script |
