@@ -7,7 +7,7 @@
 - `Dependency Review`: blocks risky dependency changes in pull requests
 - `Workflow Lint`: lints GitHub Actions workflows with `actionlint`
 - `Auto Merge`: enables auto-merge for trusted `codex/*` pull requests targeting `main`
-- `Dependabot Auto Merge`: enables auto-merge for Dependabot patch/minor updates, plus GitHub Actions major updates, targeting `main`
+- `Dependabot Auto Merge`: enables auto-merge for Dependabot updates targeting `main`
 
 ## Required branch protection
 
@@ -36,5 +36,4 @@ Optional additional required checks:
 
 - Dependabot is configured for weekly updates to Python (`/backend`), npm (`/frontend`), and GitHub Actions (`/`).
 - Dependabot pull requests run the same required checks as other PRs.
-- Patch/minor Dependabot updates are configured to auto-merge once required checks pass.
-- GitHub Actions major updates are also configured to auto-merge once required checks pass.
+- Dependabot updates are configured to auto-merge once required checks pass.
