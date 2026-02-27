@@ -566,7 +566,7 @@ Based on max HR formula: 220 - age (56) = **164 bpm**
 - [x] Core food API endpoints (POST, GET, summary)
 - [x] Migrate existing health.db data
 - [x] Basic React scaffold: Today view (food only)
-- [ ] Health agent v0.1: log food via API
+- [x] Health agent v0.1: log food via API
 
 ### Phase 2 — Exercise + Sleep *(~1 week)*
 - [x] Exercise API (sessions + sets + HR zones)
@@ -575,7 +575,7 @@ Based on max HR formula: 220 - age (56) = **164 bpm**
 - [x] Health Auto Export REST API ingest endpoint + Apple Watch HR zone calculation
 - [x] One-time historical import (all-time export via Health Auto Export)
 - [x] Dashboard: Exercise view (session history + zone breakdown chart) + Sleep view
-- [ ] Health agent: log workouts, query sleep
+- [x] Health agent: log workouts, query sleep
 
 ### Phase 3 — Labs, Metrics, Medical *(~1 week)*
 - [x] Labs API + body metrics API
@@ -646,3 +646,4 @@ Based on max HR formula: 220 - age (56) = **164 bpm**
 | 0.9 | 2026-02-27 | Started Phase 5: added goals + goal plans API (create/list/update, versioned plans, generated plan scaffold) with test coverage |
 | 0.10 | 2026-02-27 | Added doctor-visit report API (`/api/v1/reports/doctor-visit`) with markdown output and aggregate health summary for appointment prep |
 | 0.11 | 2026-02-27 | Added photo-food log flow endpoint (`/api/v1/food/from-photo`) for estimated macro capture with photo URL provenance and review notes |
+| 0.12 | 2026-02-27 | Added explicit health-agent log/query endpoints for food and workouts plus sleep query (`/api/v1/agent/log-food`, `/api/v1/agent/log-workout`, `/api/v1/agent/sleep`) |

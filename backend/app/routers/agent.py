@@ -4,6 +4,7 @@ from enum import Enum
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel, ConfigDict, Field
 
 from ..db import get_db_dependency, row_to_dict
 from ..services.suggestions import generate_daily_suggestion
@@ -18,6 +19,37 @@ class AgentQueryType(str, Enum):
     food_summary = "food_summary"
     sleep_summary = "sleep_summary"
     metric_trend = "metric_trend"
+
+
+class AgentFoodLogCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    recorded_date: Optional[date] = None
+    meal_type: str = "meal"
+    name: str = Field(min_length=1, max_length=200)
+    calories: Optional[float] = None
+    protein_g: Optional[float] = None
+    carbs_g: Optional[float] = None
+    fat_g: Optional[float] = None
+    fiber_g: Optional[float] = None
+    sodium_mg: Optional[float] = None
+    alcohol_g: Optional[float] = None
+    alcohol_calories: Optional[float] = None
+    alcohol_type: Optional[str] = None
+    notes: Optional[str] = None
+
+
+class AgentWorkoutLogCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    recorded_date: Optional[date] = None
+    session_type: str = "strength"
+    name: str = Field(min_length=1, max_length=200)
+    duration_min: Optional[int] = None
+    calories_burned: Optional[float] = None
+    avg_heart_rate: Optional[int] = None
+    max_heart_rate: Optional[int] = None
+    notes: Optional[str] = None
 
 
 def _get_food_summary(conn: sqlite3.Connection, target: date) -> dict:
@@ -44,6 +76,93 @@ def _get_sleep_summary(conn: sqlite3.Connection, target: date) -> Optional[dict]
         (str(target),),
     ).fetchone()
     return row_to_dict(sleep) if sleep else None
+
+
+@router.post("/log-food", status_code=201)
+def log_food(
+    entry: AgentFoodLogCreate, conn: sqlite3.Connection = Depends(get_db_dependency)
+):
+    recorded = entry.recorded_date or date.today()
+    cur = conn.execute(
+        """INSERT INTO food_entries
+           (recorded_date, meal_type, name, calories, protein_g, carbs_g, fat_g,
+            fiber_g, sodium_mg, alcohol_g, alcohol_calories, alcohol_type,
+            is_estimated, source, notes)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+        (
+            str(recorded),
+            entry.meal_type,
+            entry.name,
+            entry.calories,
+            entry.protein_g,
+            entry.carbs_g,
+            entry.fat_g,
+            entry.fiber_g,
+            entry.sodium_mg,
+            entry.alcohol_g,
+            entry.alcohol_calories,
+            entry.alcohol_type,
+            0,
+            "agent",
+            entry.notes,
+        ),
+    )
+    conn.commit()
+    row = conn.execute(
+        "SELECT * FROM food_entries WHERE id=?",
+        (cur.lastrowid,),
+    ).fetchone()
+    return row_to_dict(row)
+
+
+@router.post("/log-workout", status_code=201)
+def log_workout(
+    entry: AgentWorkoutLogCreate, conn: sqlite3.Connection = Depends(get_db_dependency)
+):
+    recorded = entry.recorded_date or date.today()
+    cur = conn.execute(
+        """INSERT INTO exercise_sessions
+           (
+             recorded_date,
+             session_type,
+             name,
+             duration_min,
+             calories_burned,
+             avg_heart_rate,
+             max_heart_rate,
+             source,
+             notes
+           )
+           VALUES (?, ?, ?, ?, ?, ?, ?, 'agent', ?)""",
+        (
+            str(recorded),
+            entry.session_type,
+            entry.name,
+            entry.duration_min,
+            entry.calories_burned,
+            entry.avg_heart_rate,
+            entry.max_heart_rate,
+            entry.notes,
+        ),
+    )
+    conn.commit()
+    row = conn.execute(
+        "SELECT * FROM exercise_sessions WHERE id=?",
+        (cur.lastrowid,),
+    ).fetchone()
+    return row_to_dict(row)
+
+
+@router.get("/sleep")
+def query_sleep(
+    target_date: Optional[date] = None,
+    conn: sqlite3.Connection = Depends(get_db_dependency),
+):
+    target = target_date or date.today()
+    return {
+        "date": str(target),
+        "sleep": _get_sleep_summary(conn, target),
+    }
 
 
 def _get_daily_suggestion(

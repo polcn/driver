@@ -104,3 +104,53 @@ def test_validation_hardening_for_phase3_routers(client):
         },
     )
     assert labs_response.status_code == 422
+
+
+def test_agent_log_food_and_log_workout_endpoints(client):
+    food_response = client.post(
+        "/api/v1/agent/log-food",
+        json={
+            "recorded_date": "2026-02-27",
+            "meal_type": "dinner",
+            "name": "Salmon bowl",
+            "calories": 640,
+            "protein_g": 45,
+            "notes": "logged from telegram",
+        },
+    )
+    assert food_response.status_code == 201
+    assert food_response.json()["source"] == "agent"
+    assert food_response.json()["name"] == "Salmon bowl"
+
+    workout_response = client.post(
+        "/api/v1/agent/log-workout",
+        json={
+            "recorded_date": "2026-02-27",
+            "session_type": "cardio",
+            "name": "Bike intervals",
+            "duration_min": 32,
+            "calories_burned": 280,
+        },
+    )
+    assert workout_response.status_code == 201
+    assert workout_response.json()["source"] == "agent"
+    assert workout_response.json()["session_type"] == "cardio"
+
+
+def test_agent_sleep_query_endpoint(client):
+    create_sleep = client.post(
+        "/api/v1/sleep",
+        json={
+            "recorded_date": "2026-02-27",
+            "duration_min": 430,
+            "sleep_score": 75,
+            "source": "oura",
+        },
+    )
+    assert create_sleep.status_code == 201
+
+    query = client.get("/api/v1/agent/sleep", params={"target_date": "2026-02-27"})
+    assert query.status_code == 200
+    payload = query.json()
+    assert payload["date"] == "2026-02-27"
+    assert payload["sleep"]["sleep_score"] == 75
