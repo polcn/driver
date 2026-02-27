@@ -29,6 +29,7 @@ const emptySupplements = [];
 const emptyMedications = [];
 const emptyDoctorReport = null;
 const emptyGoals = [];
+const emptyCoachingDigests = { daily: null, weekly: null };
 
 function MetricCard({ label, value, target, unit }) {
   const displayValue = value ?? 0;
@@ -200,6 +201,7 @@ function App() {
   const [reportDays, setReportDays] = useState(30);
   const [reportStatus, setReportStatus] = useState("");
   const [goals, setGoals] = useState(emptyGoals);
+  const [coachingDigests, setCoachingDigests] = useState(emptyCoachingDigests);
   const [goalName, setGoalName] = useState("");
   const [goalMetric, setGoalMetric] = useState("weight_lbs");
   const [goalType, setGoalType] = useState("target");
@@ -208,6 +210,7 @@ function App() {
   const [goalStatus, setGoalStatus] = useState("");
   const [goalPlanStatus, setGoalPlanStatus] = useState("");
   const [selectedPlanText, setSelectedPlanText] = useState("");
+  const [digestStatus, setDigestStatus] = useState("");
   const [status, setStatus] = useState("loading");
   const [error, setError] = useState("");
 
@@ -242,6 +245,7 @@ function App() {
           medicationsResponse,
           reportResponse,
           goalsResponse,
+          coachingDigestsResponse,
           setsPayload
         ] = await Promise.all([
           fetch(`/api/v1/metrics/?metric=weight_lbs&days=14&ending=${todayPayload.date}`),
@@ -255,6 +259,7 @@ function App() {
           fetch("/api/v1/medications/"),
           fetch(`/api/v1/reports/doctor-visit?days=${reportDays}&ending=${todayPayload.date}`),
           fetch("/api/v1/goals/"),
+          fetch("/api/v1/coaching/digests/latest"),
           Promise.all(
             (todayPayload.exercise ?? [])
               .filter(isStrengthSession)
@@ -301,6 +306,9 @@ function App() {
       if (!goalsResponse.ok) {
         throw new Error(`Goals request failed: ${goalsResponse.status}`);
       }
+      if (!coachingDigestsResponse.ok) {
+        throw new Error(`Coaching digest request failed: ${coachingDigestsResponse.status}`);
+      }
       const weightPayload = await weightResponse.json();
       const waistPayload = await waistResponse.json();
       const sleepPayload = await sleepResponse.json();
@@ -312,6 +320,7 @@ function App() {
       const medicationsPayload = await medicationsResponse.json();
       const reportPayload = await reportResponse.json();
       const goalsPayload = await goalsResponse.json();
+      const coachingDigestsPayload = await coachingDigestsResponse.json();
       const exerciseSetsPayload = Object.fromEntries(setsPayload);
 
       setSnapshot(todayPayload);
@@ -327,6 +336,7 @@ function App() {
       setMedications(medicationsPayload);
       setDoctorReport(reportPayload);
       setGoals(goalsPayload);
+      setCoachingDigests(coachingDigestsPayload);
       setExerciseSets(exerciseSetsPayload);
       setStatus("ready");
     } catch (err) {
@@ -418,6 +428,26 @@ function App() {
       setReportStatus("ready");
     } catch (err) {
       setReportStatus(err instanceof Error ? err.message : "refresh failed");
+    }
+  }
+
+  async function handleGenerateDigest(type) {
+    const targetDate = snapshot.date ?? new Date().toISOString().slice(0, 10);
+    const endpoint =
+      type === "weekly"
+        ? `/api/v1/coaching/digests/generate-weekly?ending=${targetDate}`
+        : `/api/v1/coaching/digests/generate-daily?target_date=${targetDate}`;
+
+    setDigestStatus(`generating ${type} digest`);
+    try {
+      const response = await fetch(endpoint, { method: "POST" });
+      if (!response.ok) {
+        throw new Error(`Digest generation failed: ${response.status}`);
+      }
+      setDigestStatus(`${type} digest ready`);
+      await loadSnapshot();
+    } catch (err) {
+      setDigestStatus(err instanceof Error ? err.message : "digest failed");
     }
   }
 
@@ -524,6 +554,43 @@ function App() {
               <li key={`${snapshot.date}-${index}`}>{insight}</li>
             ))}
           </ul>
+        )}
+      </section>
+
+      <section className="panel">
+        <h2>Coaching digests</h2>
+        <form className="inline-form" onSubmit={(event) => event.preventDefault()}>
+          <button type="button" onClick={() => handleGenerateDigest("daily")}>Generate Daily</button>
+          <button type="button" onClick={() => handleGenerateDigest("weekly")}>Generate Weekly</button>
+        </form>
+        {digestStatus ? <p className="panel-copy">Status: {digestStatus}</p> : null}
+        {coachingDigests.daily ? (
+          <>
+            <p className="panel-copy">
+              <strong>Daily ({coachingDigests.daily.digest_date}):</strong> {coachingDigests.daily.summary}
+            </p>
+            <ul className="insights-list">
+              {coachingDigests.daily.highlights.map((item, index) => (
+                <li key={`daily-${coachingDigests.daily.id}-${index}`}>{item}</li>
+              ))}
+            </ul>
+          </>
+        ) : (
+          <p className="panel-copy">No daily digest yet.</p>
+        )}
+        {coachingDigests.weekly ? (
+          <>
+            <p className="panel-copy">
+              <strong>Weekly ({coachingDigests.weekly.digest_date}):</strong> {coachingDigests.weekly.summary}
+            </p>
+            <ul className="insights-list">
+              {coachingDigests.weekly.highlights.map((item, index) => (
+                <li key={`weekly-${coachingDigests.weekly.id}-${index}`}>{item}</li>
+              ))}
+            </ul>
+          </>
+        ) : (
+          <p className="panel-copy">No weekly digest yet.</p>
         )}
       </section>
 
