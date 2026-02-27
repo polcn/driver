@@ -620,8 +620,8 @@ Based on max HR formula: 220 - age (56) = **164 bpm**
 
 ---
 
-*PRD status: Active v0.8 — Phase 4 complete*
-*Next step: phase-5 priorities (photo-food flow, goal plans, doctor-visit report automation)*
+*PRD status: Active v0.9 — Phase 5 in progress*
+*Next step: phase-5 priorities (photo-food flow and doctor-visit report automation)*
 
 ---
 ## Changelog
@@ -635,3 +635,4 @@ Based on max HR formula: 220 - age (56) = **164 bpm**
 | 0.6 | 2026-02-27 | Implemented Oura + Apple Health ingest endpoints/jobs, dashboard trends/range controls, and daily suggestion automation |
 | 0.7 | 2026-02-27 | Completed Phase 3 build scope: labs API, supplements/medications APIs, medical history CRUD, labs/metrics dashboard slice, and Feb 2026 bloodwork backfill script |
 | 0.8 | 2026-02-27 | Completed Phase 4: agent v1 query/week/suggestion endpoints, PWA manifest + service worker + mobile polish, and validation hardening for labs/supplements/medications/medical history APIs |
+| 0.9 | 2026-02-27 | Started Phase 5: added goals + goal plans API (create/list/update, versioned plans, generated plan scaffold) with test coverage |
