@@ -1,6 +1,6 @@
 # Pulse — Personal Health Platform
 ## Product Requirements Document
-*Version 0.2 — 2026-02-26*
+*Version 0.3 — 2026-02-27*
 *Owner: Craig | Architect: McGrupp*
 
 ---
@@ -26,6 +26,60 @@ The system is designed to be built incrementally, with each phase delivering wor
 - Private: no cloud services, no third-party data sharing
 
 ---
+
+## 2b. User Requirements (from interview — 2026-02-27)
+
+### Daily Usage Pattern
+- Telegram throughout the day: log food, ask questions ("what's a good alternative cardio today", "how can I get better rest", "why am I not losing weight")
+- Dashboard for reviewing logs, trends, and insights
+- Both input (log) and query (ask) via Telegram and dashboard
+
+### AI Question-Answering
+- **Option 2**: Data-grounded + general health knowledge context
+- Cross-domain correlation: "Your sleep quality dropped the two nights after alcohol exceeded 2 drinks" — patterns Oura can't see alone
+- Grounds answers in actual Driver data first, then contextualizes with health knowledge
+
+### Goals System
+- Flexible: supports both hard targets (≤3 drinks/week) and directional (trending down)
+- User-adjustable at any time — no hardcoded targets
+- Initial goals: weight loss, reduce alcohol, reduce sodium, reduce fat
+
+### Dashboard — Desktop
+Card-based layout, not static — interactive time range selectors (7d / 30d / 90d / 6mo / all time) on all trend charts:
+- **Oura-style narrative insights** (top) — cross-domain, AI-generated: sleep quality, HRV, resting HR trends, correlations
+- **Sleep** — duration, phases, HRV, readiness score
+- **Weight** — trend chart with selectable time range
+- **Heart rate trends** — resting HR, HRV over time
+- **Exercise** — sessions, calories burned, HR zone breakdown
+- **Steps + Active calories**
+- **Calorie consumption** — daily vs. target
+
+### Dashboard — Phone
+- Same data, responsive layout, cards stack vertically, charts scale to screen
+- No separate mobile design — just works
+
+### Insights
+- Driver generates its own narrative insights by correlating across ALL data sources
+- Also surfaces Oura API insights where available
+- Examples: "Sleep quality below your 7-day average", "Resting HR dropped 3 bpm this week", "Alcohol correlated with poor sleep quality on 4 of 6 nights"
+
+### Proactive Telegram Delivery (8 AM CT daily)
+- **Daily morning summary**: sleep, HRV, readiness, yesterday's intake vs. targets
+- **Daily training suggestion**: adaptive recommendation based on Oura readiness/HRV + schedule
+- **Weekly trend report**: Sunday evening — weight trend, avg protein, cardio zone time, sleep quality, alcohol
+
+### Exercise
+- Gym equipment: free weights, machines, kettlebells, cardio machines, stair machine, short indoor track, tennis, pickleball
+- Cardio preference order: stair machine → bike → rower → elliptical → track → treadmill (last resort)
+- Pool: deprioritized (crowded, slow)
+- Strength: logs sets/reps, tracks progression over time
+- Weighs in a few times/week, consistent conditions — Driver plots trend line not noise
+
+### Voice Capture (separate project — not Phase 1)
+- mlx-whisper on Mac Mini M4 host
+- Apple Watch / iPhone voice memo → transcribe → route to Driver / Clawban / notes / answer
+- Questions route immediately; everything else batched
+- Two iOS Shortcuts: "question" (immediate) + "capture" (batch)
 
 ## 3. Non-Goals
 
@@ -235,6 +289,21 @@ One user: Craig. The agent (McGrupp) is a non-human client of the API.
 | value | REAL | |
 | effective_date | DATE | targets can change over time |
 | notes | TEXT | nullable |
+
+#### `goals`
+| Column | Type | Notes |
+|--------|------|-------|
+| id | INTEGER PK | |
+| name | TEXT | e.g. "Lose weight", "Reduce alcohol" |
+| metric | TEXT | weight_lbs, alcohol_calories, sodium_mg, etc. |
+| goal_type | TEXT | target (hard number) or directional (up/down) |
+| target_value | REAL | nullable — for hard targets |
+| direction | TEXT | nullable — "down" or "up" for directional |
+| start_date | DATE | |
+| target_date | DATE | nullable |
+| active | INTEGER | 0/1 |
+| notes | TEXT | nullable |
+| created_at | DATETIME | |
 
 ---
 
@@ -534,3 +603,4 @@ Based on max HR formula: 220 - age (56) = **164 bpm**
 |---------|------|---------|
 | 0.1 | 2026-02-26 | Initial draft |
 | 0.2 | 2026-02-26 | Added training intelligence (HR zones, adaptive routine), Health Auto Export REST API workflow, `exercise_hr_zones` + `daily_suggestions` tables, updated build phases |
+| 0.3 | 2026-02-27 | User requirements interview complete — dashboard layout, insights, goals system, proactive Telegram delivery, voice capture project scoped, medical history seeded, `goals` table added |
