@@ -93,7 +93,9 @@ def create_sleep_record(entry: SleepRecordCreate):
 
 
 @router.get("/")
-def get_sleep_records(recorded_date: Optional[date] = None, days: int = 14, ending: Optional[date] = None):
+def get_sleep_records(
+    recorded_date: Optional[date] = None, days: int = 14, ending: Optional[date] = None
+):
     conn = get_db()
     try:
         if recorded_date is not None:
