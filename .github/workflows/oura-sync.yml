@@ -1,0 +1,52 @@
+name: Oura Sync
+
+on:
+  schedule:
+    - cron: "0 12 * * *"
+  workflow_dispatch:
+    inputs:
+      start_date:
+        description: "Start date (YYYY-MM-DD)"
+        required: false
+        type: string
+      end_date:
+        description: "End date (YYYY-MM-DD)"
+        required: false
+        type: string
+
+jobs:
+  sync-oura:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install backend dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r backend/requirements.txt
+
+      - name: Validate required secrets
+        env:
+          OURA_API_TOKEN: ${{ secrets.OURA_API_TOKEN }}
+          DRIVER_API_BASE: ${{ secrets.DRIVER_API_BASE }}
+        run: |
+          test -n "$OURA_API_TOKEN"
+          test -n "$DRIVER_API_BASE"
+
+      - name: Run Oura sync
+        env:
+          OURA_API_TOKEN: ${{ secrets.OURA_API_TOKEN }}
+          DRIVER_API_BASE: ${{ secrets.DRIVER_API_BASE }}
+          DRIVER_API_TOKEN: ${{ secrets.DRIVER_API_TOKEN }}
+        run: |
+          if [ -n "${{ github.event.inputs.start_date }}" ] && [ -n "${{ github.event.inputs.end_date }}" ]; then
+            python scripts/sync_oura.py --start-date "${{ github.event.inputs.start_date }}" --end-date "${{ github.event.inputs.end_date }}"
+          else
+            python scripts/sync_oura.py --days-back 2
+          fi
