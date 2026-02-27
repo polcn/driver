@@ -8,6 +8,7 @@ from .routers import (
     dashboard,
     exercise,
     food,
+    goals,
     ingest,
     labs,
     medications,
@@ -57,6 +58,7 @@ app.include_router(dashboard.router, prefix="/api/v1/dashboard", tags=["dashboar
 app.include_router(agent.router, prefix="/api/v1/agent", tags=["agent"])
 app.include_router(ingest.router, prefix="/api/v1/ingest", tags=["ingest"])
 app.include_router(training.router, prefix="/api/v1/training", tags=["training"])
+app.include_router(goals.router, prefix="/api/v1/goals", tags=["goals"])
 
 
 @app.get("/health")
