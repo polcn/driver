@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 
 from .db import init_db
-from .routers import food, dashboard
+from .routers import dashboard, food, metrics
 
 
 @asynccontextmanager
@@ -27,6 +27,7 @@ app.add_middleware(
 )
 
 app.include_router(food.router, prefix="/api/v1/food", tags=["food"])
+app.include_router(metrics.router, prefix="/api/v1/metrics", tags=["metrics"])
 app.include_router(dashboard.router, prefix="/api/v1/dashboard", tags=["dashboard"])
 
 
