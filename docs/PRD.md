@@ -588,10 +588,10 @@ Based on max HR formula: 220 - age (56) = **164 bpm**
 - [x] Daily suggestion engine (Oura readiness + HRV + schedule → morning suggestion)
 - [x] Dashboard: HR zone trend view, weekly training summary, daily suggestion card
 - [x] Dashboard: Supplements/Meds view
-- [ ] Health agent v1.0: full query support, week summaries, relay daily suggestion
-- [ ] PWA manifest + mobile optimization
+- [x] Health agent v1.0: full query support, week summaries, relay daily suggestion
+- [x] PWA manifest + mobile optimization
 - [x] Week/trend views in dashboard
-- [ ] API error handling + validation hardening
+- [x] API error handling + validation hardening
 
 ---
 
@@ -620,8 +620,8 @@ Based on max HR formula: 220 - age (56) = **164 bpm**
 
 ---
 
-*PRD status: Active v0.7 — Phase 3 complete, Phase 4 in progress*
-*Next step: Phase 4 completion (agent integration, PWA polish, API hardening)*
+*PRD status: Active v0.8 — Phase 4 complete*
+*Next step: phase-5 priorities (photo-food flow, goal plans, doctor-visit report automation)*
 
 ---
 ## Changelog
@@ -634,3 +634,4 @@ Based on max HR formula: 220 - age (56) = **164 bpm**
 | 0.5 | 2026-02-27 | PRD review fixes: added `goals` + `goal_plans` tables to schema; added CPAP detail columns (`cpap_ahi`, `cpap_hours`, `cpap_leak_95`, `cpap_pressure_avg`) to `sleep_records`; added `alcohol_type` and `photo_url` to `food_entries`; added `max_heart_rate` to `exercise_sessions` spec; noted UNIQUE constraint on `sleep_records.recorded_date`; fixed port numbers to match docker-compose (8100/8101); fixed targets query to correctly return latest per metric; fixed PATCH handler to support field clearing |
 | 0.6 | 2026-02-27 | Implemented Oura + Apple Health ingest endpoints/jobs, dashboard trends/range controls, and daily suggestion automation |
 | 0.7 | 2026-02-27 | Completed Phase 3 build scope: labs API, supplements/medications APIs, medical history CRUD, labs/metrics dashboard slice, and Feb 2026 bloodwork backfill script |
+| 0.8 | 2026-02-27 | Completed Phase 4: agent v1 query/week/suggestion endpoints, PWA manifest + service worker + mobile polish, and validation hardening for labs/supplements/medications/medical history APIs |

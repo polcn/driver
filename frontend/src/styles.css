@@ -22,7 +22,8 @@ body {
 .page-shell {
   max-width: 1120px;
   margin: 0 auto;
-  padding: 48px 20px 64px;
+  padding: calc(32px + env(safe-area-inset-top)) 20px
+    calc(64px + env(safe-area-inset-bottom));
 }
 
 .hero {
@@ -387,5 +388,34 @@ body {
 
   .panel-wide-two {
     grid-column: span 1;
+  }
+
+  .page-shell {
+    padding-left: 14px;
+    padding-right: 14px;
+  }
+
+  .hero h1 {
+    font-size: clamp(2.2rem, 12vw, 3rem);
+  }
+
+  .trend-chart {
+    grid-template-columns: repeat(auto-fit, minmax(36px, 1fr));
+    gap: 8px;
+    min-height: 180px;
+  }
+}
+
+@media (max-width: 480px) {
+  .metric-card,
+  .panel,
+  .hero-status {
+    border-radius: 16px;
+    padding: 14px;
+  }
+
+  .panel h2 {
+    font-size: 1.05rem;
+    margin-bottom: 10px;
   }
 }
