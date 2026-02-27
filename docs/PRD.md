@@ -587,7 +587,7 @@ Based on max HR formula: 220 - age (56) = **164 bpm**
 ### Phase 4 — Training Intelligence + Polish *(~1 week)*
 - [x] Daily suggestion engine (Oura readiness + HRV + schedule → morning suggestion)
 - [x] Dashboard: HR zone trend view, weekly training summary, daily suggestion card
-- [ ] Dashboard: Supplements/Meds view
+- [x] Dashboard: Supplements/Meds view
 - [ ] Health agent v1.0: full query support, week summaries, relay daily suggestion
 - [ ] PWA manifest + mobile optimization
 - [x] Week/trend views in dashboard
@@ -621,7 +621,7 @@ Based on max HR formula: 220 - age (56) = **164 bpm**
 ---
 
 *PRD status: Active v0.7 — Phase 3 complete, Phase 4 in progress*
-*Next step: Phase 4 completion (supplements/meds dashboard, agent integration, PWA polish)*
+*Next step: Phase 4 completion (agent integration, PWA polish, API hardening)*
 
 ---
 ## Changelog
