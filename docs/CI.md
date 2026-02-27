@@ -6,6 +6,7 @@
 - `CodeQL`: GitHub code scanning for Python
 - `Dependency Review`: blocks risky dependency changes in pull requests
 - `Workflow Lint`: lints GitHub Actions workflows with `actionlint`
+- `Auto Merge`: enables auto-merge for trusted `codex/*` pull requests targeting `main`
 
 ## Required branch protection
 
