@@ -19,6 +19,7 @@ const emptyWeek = {
 const emptyWeightTrend = [];
 const emptyWaistTrend = [];
 const emptyExerciseSets = {};
+const emptySleepRecord = null;
 
 function MetricCard({ label, value, target, unit }) {
   const displayValue = value ?? 0;
@@ -133,6 +134,7 @@ function App() {
   const [weightTrend, setWeightTrend] = useState(emptyWeightTrend);
   const [waistTrend, setWaistTrend] = useState(emptyWaistTrend);
   const [exerciseSets, setExerciseSets] = useState(emptyExerciseSets);
+  const [sleepRecord, setSleepRecord] = useState(emptySleepRecord);
   const [status, setStatus] = useState("loading");
   const [error, setError] = useState("");
 
@@ -158,9 +160,10 @@ function App() {
           weekResponse.json()
         ]);
 
-        const [weightResponse, waistResponse, setsPayload] = await Promise.all([
+        const [weightResponse, waistResponse, sleepResponse, setsPayload] = await Promise.all([
           fetch(`/api/v1/metrics?metric=weight_lbs&days=14&ending=${todayPayload.date}`),
           fetch(`/api/v1/metrics?metric=waist_in&days=14&ending=${todayPayload.date}`),
+          fetch(`/api/v1/sleep?recorded_date=${todayPayload.date}`),
           Promise.all(
             (todayPayload.exercise ?? [])
               .filter(isStrengthSession)
@@ -180,8 +183,12 @@ function App() {
         if (!waistResponse.ok) {
           throw new Error(`Waist trend request failed: ${waistResponse.status}`);
         }
+        if (!sleepResponse.ok) {
+          throw new Error(`Sleep request failed: ${sleepResponse.status}`);
+        }
         const weightPayload = await weightResponse.json();
         const waistPayload = await waistResponse.json();
+        const sleepPayload = await sleepResponse.json();
         const exerciseSetsPayload = Object.fromEntries(setsPayload);
         if (!isActive) {
           return;
@@ -191,6 +198,7 @@ function App() {
         setWeek(weekPayload);
         setWeightTrend(weightPayload);
         setWaistTrend(waistPayload);
+        setSleepRecord(sleepPayload);
         setExerciseSets(exerciseSetsPayload);
         setStatus("ready");
       } catch (err) {
@@ -215,6 +223,7 @@ function App() {
   const weeklyFood = buildWeeklyFoodSeries(week);
   const weightSeries = buildWeightSeries(weightTrend);
   const waistSeries = buildWeightSeries(waistTrend);
+  const sleep = sleepRecord ?? snapshot.sleep;
   const exerciseSummary = formatExerciseSummary(snapshot.exercise);
   const latestWeight = weightSeries.length > 0 ? weightSeries[weightSeries.length - 1].value : null;
   const weightChange = weightSeries.length > 1 ? weightSeries[weightSeries.length - 1].offset : null;
@@ -382,11 +391,11 @@ function App() {
         <article className="panel">
           <h2>Sleep</h2>
           <p className="panel-value">
-            {snapshot.sleep?.duration_min ? `${snapshot.sleep.duration_min} min` : "No sleep record"}
+            {sleep?.duration_min ? `${sleep.duration_min} min` : "No sleep record"}
           </p>
           <p className="panel-copy">
-            {snapshot.sleep?.sleep_score
-              ? `Sleep score ${snapshot.sleep.sleep_score}`
+            {sleep?.sleep_score
+              ? `Sleep score ${sleep.sleep_score}`
               : "Sleep data will appear here once ingestion is wired."}
           </p>
         </article>
