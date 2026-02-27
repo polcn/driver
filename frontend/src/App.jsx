@@ -27,6 +27,7 @@ const emptyLabs = [];
 const emptyLabTrend = [];
 const emptySupplements = [];
 const emptyMedications = [];
+const emptyDoctorReport = null;
 
 function MetricCard({ label, value, target, unit }) {
   const displayValue = value ?? 0;
@@ -190,6 +191,9 @@ function App() {
   const [photoUrl, setPhotoUrl] = useState("");
   const [photoMealType, setPhotoMealType] = useState("meal");
   const [photoStatus, setPhotoStatus] = useState("");
+  const [doctorReport, setDoctorReport] = useState(emptyDoctorReport);
+  const [reportDays, setReportDays] = useState(30);
+  const [reportStatus, setReportStatus] = useState("");
   const [status, setStatus] = useState("loading");
   const [error, setError] = useState("");
 
@@ -222,6 +226,7 @@ function App() {
           glucoseResponse,
           supplementsResponse,
           medicationsResponse,
+          reportResponse,
           setsPayload
         ] = await Promise.all([
           fetch(`/api/v1/metrics?metric=weight_lbs&days=14&ending=${todayPayload.date}`),
@@ -233,6 +238,7 @@ function App() {
           fetch("/api/v1/labs?marker=Glucose"),
           fetch("/api/v1/supplements"),
           fetch("/api/v1/medications"),
+          fetch(`/api/v1/reports/doctor-visit?days=${reportDays}&ending=${todayPayload.date}`),
           Promise.all(
             (todayPayload.exercise ?? [])
               .filter(isStrengthSession)
@@ -273,6 +279,9 @@ function App() {
       if (!medicationsResponse.ok) {
         throw new Error(`Medications request failed: ${medicationsResponse.status}`);
       }
+      if (!reportResponse.ok) {
+        throw new Error(`Doctor report request failed: ${reportResponse.status}`);
+      }
       const weightPayload = await weightResponse.json();
       const waistPayload = await waistResponse.json();
       const sleepPayload = await sleepResponse.json();
@@ -282,6 +291,7 @@ function App() {
       const glucosePayload = await glucoseResponse.json();
       const supplementsPayload = await supplementsResponse.json();
       const medicationsPayload = await medicationsResponse.json();
+      const reportPayload = await reportResponse.json();
       const exerciseSetsPayload = Object.fromEntries(setsPayload);
 
       setSnapshot(todayPayload);
@@ -295,6 +305,7 @@ function App() {
       setGlucoseTrend(glucosePayload);
       setSupplements(supplementsPayload);
       setMedications(medicationsPayload);
+      setDoctorReport(reportPayload);
       setExerciseSets(exerciseSetsPayload);
       setStatus("ready");
     } catch (err) {
@@ -335,6 +346,23 @@ function App() {
       await loadSnapshot();
     } catch (err) {
       setPhotoStatus(err instanceof Error ? err.message : "submit failed");
+    }
+  }
+
+  async function handleRefreshReport(event) {
+    event.preventDefault();
+    const ending = snapshot.date ?? new Date().toISOString().slice(0, 10);
+    setReportStatus("refreshing");
+    try {
+      const response = await fetch(`/api/v1/reports/doctor-visit?days=${reportDays}&ending=${ending}`);
+      if (!response.ok) {
+        throw new Error(`Report request failed: ${response.status}`);
+      }
+      const payload = await response.json();
+      setDoctorReport(payload);
+      setReportStatus("ready");
+    } catch (err) {
+      setReportStatus(err instanceof Error ? err.message : "refresh failed");
     }
   }
 
@@ -452,6 +480,29 @@ function App() {
           <button type="submit">Log Photo Meal</button>
         </form>
         {photoStatus ? <p className="panel-copy">Status: {photoStatus}</p> : null}
+      </section>
+
+      <section className="panel">
+        <h2>Doctor visit report</h2>
+        <form className="inline-form" onSubmit={handleRefreshReport}>
+          <label>
+            Days
+            <input
+              type="number"
+              min="7"
+              max="365"
+              value={reportDays}
+              onChange={(event) => setReportDays(Number(event.target.value))}
+            />
+          </label>
+          <button type="submit">Refresh Report</button>
+        </form>
+        {reportStatus ? <p className="panel-copy">Status: {reportStatus}</p> : null}
+        {doctorReport?.report_markdown ? (
+          <pre className="report-preview">{doctorReport.report_markdown}</pre>
+        ) : (
+          <p className="panel-copy">No report loaded yet.</p>
+        )}
       </section>
 
       <section className="content-grid">
