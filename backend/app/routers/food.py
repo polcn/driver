@@ -60,11 +60,25 @@ def create_food_entry(entry: FoodEntryCreate):
                 fiber_g, sodium_mg, alcohol_g, alcohol_calories, alcohol_type,
                 photo_url, servings, is_estimated, source, notes)
                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
-            (str(entry.recorded_date), entry.meal_type, entry.name,
-             entry.calories, entry.protein_g, entry.carbs_g, entry.fat_g,
-             entry.fiber_g, entry.sodium_mg, entry.alcohol_g, entry.alcohol_calories,
-             entry.alcohol_type, entry.photo_url,
-             entry.servings, int(entry.is_estimated), entry.source, entry.notes)
+            (
+                str(entry.recorded_date),
+                entry.meal_type,
+                entry.name,
+                entry.calories,
+                entry.protein_g,
+                entry.carbs_g,
+                entry.fat_g,
+                entry.fiber_g,
+                entry.sodium_mg,
+                entry.alcohol_g,
+                entry.alcohol_calories,
+                entry.alcohol_type,
+                entry.photo_url,
+                entry.servings,
+                int(entry.is_estimated),
+                entry.source,
+                entry.notes,
+            ),
         )
         conn.commit()
         row = conn.execute(
@@ -87,7 +101,7 @@ def get_food_entries(date: Optional[str] = None):
                    WHERE recorded_date=?
                      AND deleted_at IS NULL
                    ORDER BY created_at""",
-                (date,)
+                (date,),
             ).fetchall()
         else:
             rows = conn.execute(
@@ -118,7 +132,7 @@ def get_daily_summary(date: str):
                 ROUND(SUM(alcohol_calories), 0) as alcohol_calories
                FROM food_entries
                WHERE recorded_date=? AND deleted_at IS NULL""",
-            (date,)
+            (date,),
         ).fetchone()
 
         targets = conn.execute(
@@ -127,7 +141,7 @@ def get_daily_summary(date: str):
                    SELECT MAX(t2.effective_date) FROM targets t2
                    WHERE t2.metric = t1.metric AND t2.effective_date <= ?
                )""",
-            (date,)
+            (date,),
         ).fetchall()
         target_map = {r["metric"]: r["value"] for r in targets}
 

@@ -5,9 +5,7 @@ from pathlib import Path
 
 def load_migration_module():
     module_path = (
-        Path(__file__).resolve().parent.parent
-        / "scripts"
-        / "migrate_health_db.py"
+        Path(__file__).resolve().parent.parent / "scripts" / "migrate_health_db.py"
     )
     spec = importlib.util.spec_from_file_location("migrate_health_db", module_path)
     module = importlib.util.module_from_spec(spec)
