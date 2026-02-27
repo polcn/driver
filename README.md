@@ -15,13 +15,13 @@ Tracks food intake, exercise, sleep, bloodwork, body metrics, supplements, and m
 This repository currently contains:
 
 - A FastAPI backend
+- A minimal React + Vite frontend scaffold for the Today dashboard
 - A SQLite schema covering the planned health domains
 - Food endpoints and basic dashboard aggregate endpoints
 - GitHub Actions for linting, tests, dependency audit, and CodeQL
 
 This repository does not currently contain:
 
-- A checked-in frontend app
 - Oura sync jobs
 - Apple Health ingest jobs
 - Most non-food API routes from the PRD
@@ -39,6 +39,7 @@ driver/
 │   ├── requirements.txt
 │   ├── requirements-dev.txt
 │   └── Dockerfile
+├── frontend/         # Minimal React + Vite dashboard scaffold
 ├── tests/            # Backend API tests
 ├── scripts/          # One-off migration and future ingest scripts
 ├── .github/          # CI and code scanning workflows
@@ -68,4 +69,4 @@ cp .env.example .env
 docker compose up --build
 ```
 
-The current `docker-compose.yml` starts only the backend service on port `8100`.
+The current `docker-compose.yml` starts the backend on port `8100` and the minimal frontend scaffold on port `8101`.
