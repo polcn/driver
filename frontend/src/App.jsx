@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 const emptySnapshot = {
   date: null,
   food: null,
+  activity: null,
   targets: {},
   exercise: [],
   sleep: null,
@@ -250,6 +251,7 @@ function App() {
   }, []);
 
   const food = snapshot.food ?? {};
+  const activity = snapshot.activity ?? {};
   const targets = snapshot.targets ?? {};
   const weeklyFood = buildWeeklyFoodSeries(week);
   const weightSeries = buildWeightSeries(weightTrend);
@@ -320,6 +322,14 @@ function App() {
         <MetricCard
           label="Food Entries"
           value={food.entry_count}
+        />
+        <MetricCard
+          label="Steps"
+          value={activity.steps}
+        />
+        <MetricCard
+          label="Active Calories"
+          value={activity.active_calories}
         />
       </section>
 
