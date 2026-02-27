@@ -401,6 +401,49 @@ body {
   font-weight: 600;
 }
 
+.inline-form {
+  display: flex;
+  gap: 10px;
+  align-items: end;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.inline-form label {
+  display: grid;
+  gap: 4px;
+  color: #49565f;
+}
+
+.inline-form input,
+.inline-form button {
+  font: inherit;
+  border-radius: 10px;
+  border: 1px solid rgba(24, 33, 38, 0.2);
+  padding: 8px 10px;
+  background: rgba(255, 255, 255, 0.85);
+}
+
+.inline-form button {
+  background: linear-gradient(90deg, #be7f34, #3e6d72);
+  color: #fff;
+  border: 0;
+  font-weight: 600;
+}
+
+.report-preview {
+  margin: 0;
+  padding: 12px;
+  border-radius: 12px;
+  background: rgba(24, 33, 38, 0.06);
+  border: 1px solid rgba(24, 33, 38, 0.08);
+  white-space: pre-wrap;
+  line-height: 1.35;
+  color: #2b363d;
+  max-height: 340px;
+  overflow: auto;
+}
+
 @media (max-width: 900px) {
   .hero,
   .grid,
