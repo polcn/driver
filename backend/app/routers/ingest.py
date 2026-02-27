@@ -1,10 +1,11 @@
+import sqlite3
 from datetime import datetime
 from typing import Optional
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 
-from ..db import get_db
+from ..db import get_db_dependency
 
 router = APIRouter()
 
@@ -138,7 +139,9 @@ def compute_hr_zone_minutes(
 
 
 @router.post("/apple-health", response_model=IngestResponse)
-def ingest_apple_health(payload: dict):
+def ingest_apple_health(
+    payload: dict, conn: sqlite3.Connection = Depends(get_db_dependency)
+):
     metric_name_map = {
         "resting_heart_rate": "resting_hr",
         "heart_rate_variability": "hrv",
@@ -156,214 +159,208 @@ def ingest_apple_health(payload: dict):
     processed_workouts = 0
     skipped = 0
 
-    conn = get_db()
-    try:
-        for metric in metrics:
-            metric_name = metric.get("name")
-            points = metric.get("data") or []
-            if not metric_name or not isinstance(points, list):
-                skipped += 1
-                continue
+    for metric in metrics:
+        metric_name = metric.get("name")
+        points = metric.get("data") or []
+        if not metric_name or not isinstance(points, list):
+            skipped += 1
+            continue
 
-            if metric_name == "heart_rate":
-                skipped += len(points)
-                continue
+        if metric_name == "heart_rate":
+            skipped += len(points)
+            continue
 
-            if metric_name == "sleep_analysis":
-                for point in points:
-                    recorded_date = extract_recorded_date(point.get("date"))
-                    qty = point.get("qty")
-                    if recorded_date is None or qty is None:
-                        skipped += 1
-                        continue
-                    conn.execute(
-                        """INSERT OR IGNORE INTO sleep_records
-                           (recorded_date, duration_min, source)
-                           VALUES (?, ?, 'apple_health')""",
-                        (recorded_date, int(round(float(qty) * 60))),
-                    )
-                    processed_metrics += 1
-                continue
-
-            target_metric = metric_name_map.get(metric_name, metric_name)
+        if metric_name == "sleep_analysis":
             for point in points:
                 recorded_date = extract_recorded_date(point.get("date"))
                 qty = point.get("qty")
                 if recorded_date is None or qty is None:
                     skipped += 1
                     continue
-                existing_row = conn.execute(
-                    """SELECT id
-                       FROM body_metrics
-                       WHERE recorded_date=? AND metric=? AND source='apple_health'
-                       ORDER BY id DESC
-                       LIMIT 1""",
-                    (recorded_date, target_metric),
-                ).fetchone()
-                if existing_row:
-                    conn.execute(
-                        """UPDATE body_metrics
-                           SET value=?, notes=NULL
-                           WHERE id=?""",
-                        (float(qty), existing_row["id"]),
-                    )
-                else:
-                    conn.execute(
-                        """INSERT INTO body_metrics (recorded_date, metric, value, source)
-                           VALUES (?, ?, ?, 'apple_health')""",
-                        (recorded_date, target_metric, float(qty)),
-                    )
+                conn.execute(
+                    """INSERT OR IGNORE INTO sleep_records
+                       (recorded_date, duration_min, source)
+                       VALUES (?, ?, 'apple_health')""",
+                    (recorded_date, int(round(float(qty) * 60))),
+                )
                 processed_metrics += 1
+            continue
 
-        for workout in workouts:
-            start_value = workout.get("start")
-            recorded_date = extract_recorded_date(start_value)
-            if recorded_date is None:
+        target_metric = metric_name_map.get(metric_name, metric_name)
+        for point in points:
+            recorded_date = extract_recorded_date(point.get("date"))
+            qty = point.get("qty")
+            if recorded_date is None or qty is None:
                 skipped += 1
                 continue
-
-            external_id = (
-                f"apple_health:{start_value}"
-                if start_value
-                else f"apple_health:{recorded_date}:{workout.get('name') or 'workout'}"
-            )
-            duration_seconds = workout.get("duration")
-            duration_min = (
-                int(round(float(duration_seconds) / 60.0))
-                if duration_seconds is not None
-                else None
-            )
-            if duration_min is None:
-                start_ts = parse_timestamp(start_value)
-                end_ts = parse_timestamp(workout.get("end"))
-                if start_ts and end_ts:
-                    duration_min = int(
-                        round(max(0.0, (end_ts - start_ts).total_seconds() / 60.0))
-                    )
-            active_energy = workout.get("activeEnergy") or {}
-            heart_rates = workout.get("heartRateData") or []
-            heart_values = [
-                float(p["qty"]) for p in heart_rates if p.get("qty") is not None
-            ]
-            avg_heart_rate = (
-                int(round(sum(heart_values) / len(heart_values)))
-                if heart_values
-                else None
-            )
-            max_heart_rate = int(round(max(heart_values))) if heart_values else None
-
-            existing_session = conn.execute(
+            existing_row = conn.execute(
                 """SELECT id
-                   FROM exercise_sessions
-                   WHERE source='apple_health' AND external_id=?
+                   FROM body_metrics
+                   WHERE recorded_date=? AND metric=? AND source='apple_health'
                    ORDER BY id DESC
                    LIMIT 1""",
-                (external_id,),
+                (recorded_date, target_metric),
             ).fetchone()
-            if existing_session:
+            if existing_row:
                 conn.execute(
-                    """UPDATE exercise_sessions
-                       SET recorded_date=?,
-                           session_type=?,
-                           name=?,
-                           duration_min=?,
-                           calories_burned=?,
-                           avg_heart_rate=?,
-                           max_heart_rate=?,
-                           deleted_at=NULL
+                    """UPDATE body_metrics
+                       SET value=?, notes=NULL
                        WHERE id=?""",
-                    (
-                        recorded_date,
-                        classify_session_type(workout.get("name")),
-                        workout.get("name"),
-                        duration_min,
-                        active_energy.get("qty"),
-                        avg_heart_rate,
-                        max_heart_rate,
-                        existing_session["id"],
-                    ),
+                    (float(qty), existing_row["id"]),
                 )
             else:
                 conn.execute(
-                    """INSERT INTO exercise_sessions
-                       (
-                         recorded_date,
-                         session_type,
-                         name,
-                         external_id,
-                         duration_min,
-                         calories_burned,
-                         avg_heart_rate,
-                         max_heart_rate,
-                         source
-                       )
-                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'apple_health')""",
+                    """INSERT INTO body_metrics (recorded_date, metric, value, source)
+                       VALUES (?, ?, ?, 'apple_health')""",
+                    (recorded_date, target_metric, float(qty)),
+                )
+            processed_metrics += 1
+
+    for workout in workouts:
+        start_value = workout.get("start")
+        recorded_date = extract_recorded_date(start_value)
+        if recorded_date is None:
+            skipped += 1
+            continue
+
+        external_id = (
+            f"apple_health:{start_value}"
+            if start_value
+            else f"apple_health:{recorded_date}:{workout.get('name') or 'workout'}"
+        )
+        duration_seconds = workout.get("duration")
+        duration_min = (
+            int(round(float(duration_seconds) / 60.0))
+            if duration_seconds is not None
+            else None
+        )
+        if duration_min is None:
+            start_ts = parse_timestamp(start_value)
+            end_ts = parse_timestamp(workout.get("end"))
+            if start_ts and end_ts:
+                duration_min = int(
+                    round(max(0.0, (end_ts - start_ts).total_seconds() / 60.0))
+                )
+        active_energy = workout.get("activeEnergy") or {}
+        heart_rates = workout.get("heartRateData") or []
+        heart_values = [
+            float(p["qty"]) for p in heart_rates if p.get("qty") is not None
+        ]
+        avg_heart_rate = (
+            int(round(sum(heart_values) / len(heart_values))) if heart_values else None
+        )
+        max_heart_rate = int(round(max(heart_values))) if heart_values else None
+
+        existing_session = conn.execute(
+            """SELECT id
+               FROM exercise_sessions
+               WHERE source='apple_health' AND external_id=?
+               ORDER BY id DESC
+               LIMIT 1""",
+            (external_id,),
+        ).fetchone()
+        if existing_session:
+            conn.execute(
+                """UPDATE exercise_sessions
+                   SET recorded_date=?,
+                       session_type=?,
+                       name=?,
+                       duration_min=?,
+                       calories_burned=?,
+                       avg_heart_rate=?,
+                       max_heart_rate=?,
+                       deleted_at=NULL
+                   WHERE id=?""",
+                (
+                    recorded_date,
+                    classify_session_type(workout.get("name")),
+                    workout.get("name"),
+                    duration_min,
+                    active_energy.get("qty"),
+                    avg_heart_rate,
+                    max_heart_rate,
+                    existing_session["id"],
+                ),
+            )
+        else:
+            conn.execute(
+                """INSERT INTO exercise_sessions
+                   (
+                     recorded_date,
+                     session_type,
+                     name,
+                     external_id,
+                     duration_min,
+                     calories_burned,
+                     avg_heart_rate,
+                     max_heart_rate,
+                     source
+                   )
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'apple_health')""",
+                (
+                    recorded_date,
+                    classify_session_type(workout.get("name")),
+                    workout.get("name"),
+                    external_id,
+                    duration_min,
+                    active_energy.get("qty"),
+                    avg_heart_rate,
+                    max_heart_rate,
+                ),
+            )
+
+        session = conn.execute(
+            """SELECT id
+               FROM exercise_sessions
+               WHERE source='apple_health' AND external_id=?
+               ORDER BY id DESC
+               LIMIT 1""",
+            (external_id,),
+        ).fetchone()
+
+        if session is None:
+            skipped += 1
+            continue
+
+        session_id = session["id"]
+        conn.execute(
+            "DELETE FROM exercise_hr_zones WHERE session_id=?",
+            (session_id,),
+        )
+
+        zone_minutes = compute_hr_zone_minutes(heart_rates, duration_min)
+        total_minutes = float(duration_min or 0)
+        if total_minutes <= 0 and zone_minutes:
+            total_minutes = sum(zone_minutes.values())
+
+        if total_minutes > 0:
+            for zone, minutes in sorted(zone_minutes.items()):
+                conn.execute(
+                    """INSERT INTO exercise_hr_zones (session_id, zone, minutes, pct_of_session)
+                       VALUES (?, ?, ?, ?)""",
                     (
-                        recorded_date,
-                        classify_session_type(workout.get("name")),
-                        workout.get("name"),
-                        external_id,
-                        duration_min,
-                        active_energy.get("qty"),
-                        avg_heart_rate,
-                        max_heart_rate,
+                        session_id,
+                        zone,
+                        round(minutes, 3),
+                        round((minutes / total_minutes) * 100.0, 3),
                     ),
                 )
 
-            session = conn.execute(
-                """SELECT id
-                   FROM exercise_sessions
-                   WHERE source='apple_health' AND external_id=?
-                   ORDER BY id DESC
-                   LIMIT 1""",
-                (external_id,),
-            ).fetchone()
+        processed_workouts += 1
 
-            if session is None:
-                skipped += 1
-                continue
-
-            session_id = session["id"]
-            conn.execute(
-                "DELETE FROM exercise_hr_zones WHERE session_id=?",
-                (session_id,),
-            )
-
-            zone_minutes = compute_hr_zone_minutes(heart_rates, duration_min)
-            total_minutes = float(duration_min or 0)
-            if total_minutes <= 0 and zone_minutes:
-                total_minutes = sum(zone_minutes.values())
-
-            if total_minutes > 0:
-                for zone, minutes in sorted(zone_minutes.items()):
-                    conn.execute(
-                        """INSERT INTO exercise_hr_zones (session_id, zone, minutes, pct_of_session)
-                           VALUES (?, ?, ?, ?)""",
-                        (
-                            session_id,
-                            zone,
-                            round(minutes, 3),
-                            round((minutes / total_minutes) * 100.0, 3),
-                        ),
-                    )
-
-            processed_workouts += 1
-
-        conn.commit()
-        return {
-            "status": "ok",
-            "processed": {
-                "metrics": processed_metrics,
-                "workouts": processed_workouts,
-                "skipped": skipped,
-            },
-        }
-    finally:
-        conn.close()
+    conn.commit()
+    return {
+        "status": "ok",
+        "processed": {
+            "metrics": processed_metrics,
+            "workouts": processed_workouts,
+            "skipped": skipped,
+        },
+    }
 
 
 @router.post("/oura")
-def ingest_oura(payload: dict):
+def ingest_oura(payload: dict, conn: sqlite3.Connection = Depends(get_db_dependency)):
     data = payload.get("data") if isinstance(payload.get("data"), dict) else payload
     sleep_entries = data.get("sleep") or []
     readiness_entries = data.get("readiness") or []
@@ -426,131 +423,127 @@ def ingest_oura(payload: dict):
         )
         processed_readiness += 1
 
-    conn = get_db()
-    try:
-        for recorded_date, values in merged_sleep.items():
-            existing = conn.execute(
-                """SELECT id, source
-                   FROM sleep_records
-                   WHERE recorded_date=?
-                   LIMIT 1""",
-                (recorded_date,),
-            ).fetchone()
+    for recorded_date, values in merged_sleep.items():
+        existing = conn.execute(
+            """SELECT id, source
+               FROM sleep_records
+               WHERE recorded_date=?
+               LIMIT 1""",
+            (recorded_date,),
+        ).fetchone()
 
-            if existing and existing["source"] not in ("oura", "apple_health"):
-                skipped += 1
+        if existing and existing["source"] not in ("oura", "apple_health"):
+            skipped += 1
+            continue
+
+        if existing:
+            conn.execute(
+                """UPDATE sleep_records
+                   SET bedtime=?,
+                       wake_time=?,
+                       duration_min=?,
+                       deep_min=?,
+                       rem_min=?,
+                       core_min=?,
+                       awake_min=?,
+                       hrv=?,
+                       resting_hr=?,
+                       readiness_score=?,
+                       sleep_score=?,
+                       source='oura'
+                   WHERE id=?""",
+                (
+                    values.get("bedtime"),
+                    values.get("wake_time"),
+                    values.get("duration_min"),
+                    values.get("deep_min"),
+                    values.get("rem_min"),
+                    values.get("core_min"),
+                    values.get("awake_min"),
+                    values.get("hrv"),
+                    values.get("resting_hr"),
+                    values.get("readiness_score"),
+                    values.get("sleep_score"),
+                    existing["id"],
+                ),
+            )
+        else:
+            conn.execute(
+                """INSERT INTO sleep_records
+                   (
+                     recorded_date,
+                     bedtime,
+                     wake_time,
+                     duration_min,
+                     deep_min,
+                     rem_min,
+                     core_min,
+                     awake_min,
+                     hrv,
+                     resting_hr,
+                     readiness_score,
+                     sleep_score,
+                     source
+                   )
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'oura')""",
+                (
+                    recorded_date,
+                    values.get("bedtime"),
+                    values.get("wake_time"),
+                    values.get("duration_min"),
+                    values.get("deep_min"),
+                    values.get("rem_min"),
+                    values.get("core_min"),
+                    values.get("awake_min"),
+                    values.get("hrv"),
+                    values.get("resting_hr"),
+                    values.get("readiness_score"),
+                    values.get("sleep_score"),
+                ),
+            )
+
+    for entry in activity_entries:
+        recorded_date = extract_date_from_record(entry, "day", "date")
+        if recorded_date is None:
+            skipped += 1
+            continue
+
+        metric_values = {
+            "active_calories": entry.get("active_calories")
+            or entry.get("active_energy"),
+            "steps": entry.get("steps"),
+        }
+        for metric, value in metric_values.items():
+            if value is None:
                 continue
-
-            if existing:
+            existing_metric = conn.execute(
+                """SELECT id
+                   FROM body_metrics
+                   WHERE recorded_date=? AND metric=? AND source='oura'
+                   ORDER BY id DESC
+                   LIMIT 1""",
+                (recorded_date, metric),
+            ).fetchone()
+            if existing_metric:
                 conn.execute(
-                    """UPDATE sleep_records
-                       SET bedtime=?,
-                           wake_time=?,
-                           duration_min=?,
-                           deep_min=?,
-                           rem_min=?,
-                           core_min=?,
-                           awake_min=?,
-                           hrv=?,
-                           resting_hr=?,
-                           readiness_score=?,
-                           sleep_score=?,
-                           source='oura'
-                       WHERE id=?""",
-                    (
-                        values.get("bedtime"),
-                        values.get("wake_time"),
-                        values.get("duration_min"),
-                        values.get("deep_min"),
-                        values.get("rem_min"),
-                        values.get("core_min"),
-                        values.get("awake_min"),
-                        values.get("hrv"),
-                        values.get("resting_hr"),
-                        values.get("readiness_score"),
-                        values.get("sleep_score"),
-                        existing["id"],
-                    ),
+                    "UPDATE body_metrics SET value=?, notes=NULL WHERE id=?",
+                    (float(value), existing_metric["id"]),
                 )
             else:
                 conn.execute(
-                    """INSERT INTO sleep_records
-                       (
-                         recorded_date,
-                         bedtime,
-                         wake_time,
-                         duration_min,
-                         deep_min,
-                         rem_min,
-                         core_min,
-                         awake_min,
-                         hrv,
-                         resting_hr,
-                         readiness_score,
-                         sleep_score,
-                         source
-                       )
-                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'oura')""",
-                    (
-                        recorded_date,
-                        values.get("bedtime"),
-                        values.get("wake_time"),
-                        values.get("duration_min"),
-                        values.get("deep_min"),
-                        values.get("rem_min"),
-                        values.get("core_min"),
-                        values.get("awake_min"),
-                        values.get("hrv"),
-                        values.get("resting_hr"),
-                        values.get("readiness_score"),
-                        values.get("sleep_score"),
-                    ),
+                    """INSERT INTO body_metrics (recorded_date, metric, value, source)
+                       VALUES (?, ?, ?, 'oura')""",
+                    (recorded_date, metric, float(value)),
                 )
+            processed_activity += 1
 
-        for entry in activity_entries:
-            recorded_date = extract_date_from_record(entry, "day", "date")
-            if recorded_date is None:
-                skipped += 1
-                continue
-
-            metric_values = {
-                "active_calories": entry.get("active_calories")
-                or entry.get("active_energy"),
-                "steps": entry.get("steps"),
-            }
-            for metric, value in metric_values.items():
-                if value is None:
-                    continue
-                existing_metric = conn.execute(
-                    """SELECT id
-                       FROM body_metrics
-                       WHERE recorded_date=? AND metric=? AND source='oura'
-                       ORDER BY id DESC
-                       LIMIT 1""",
-                    (recorded_date, metric),
-                ).fetchone()
-                if existing_metric:
-                    conn.execute(
-                        "UPDATE body_metrics SET value=?, notes=NULL WHERE id=?",
-                        (float(value), existing_metric["id"]),
-                    )
-                else:
-                    conn.execute(
-                        """INSERT INTO body_metrics (recorded_date, metric, value, source)
-                           VALUES (?, ?, ?, 'oura')""",
-                        (recorded_date, metric, float(value)),
-                    )
-                processed_activity += 1
-
-        conn.commit()
-        return {
-            "status": "ok",
-            "processed": {
-                "sleep": processed_sleep,
-                "readiness": processed_readiness,
-                "activity": processed_activity,
-                "skipped": skipped,
-            },
-        }
-    finally:
-        conn.close()
+    conn.commit()
+    return {
+        "status": "ok",
+        "processed": {
+            "sleep": processed_sleep,
+            "readiness": processed_readiness,
+            "activity": processed_activity,
+            "skipped": skipped,
+        },
+    }
