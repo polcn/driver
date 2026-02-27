@@ -1,6 +1,6 @@
 # Pulse — Personal Health Platform
 ## Product Requirements Document
-*Version 0.3 — 2026-02-27*
+*Version 0.4 — 2026-02-27*
 *Owner: Craig | Architect: McGrupp*
 
 ---
@@ -44,6 +44,15 @@ The system is designed to be built incrementally, with each phase delivering wor
 - User-adjustable at any time — no hardcoded targets
 - Initial goals: weight loss, reduce alcohol, reduce sodium, reduce fat
 - **Goal plans**: when a goal is set, Driver + agent generate an actionable plan (deficit targets, macro adjustments, exercise recommendations, timeline). Plan adapts if progress is off track.
+
+### Additional Features (from interview)
+- **Photo food logging** — snap a photo, agent estimates macros, logs to Driver
+- **Alcohol tracking by type** — beer, wine, spirits tracked separately (different trig impact patterns)
+- **Symptoms** — ingested from Oura (already tracked there), not a separate UI
+- **CPAP data** — ResMed AirSense 11 AutoSet; SD card data accessible via Google Drive (`mcgrupp/resmed/`); full parser built; 282 nights of data (Feb 2025–Feb 2026); ingest into `sleep_records` with AHI, compliance hours, leak, pressure; correlate with Oura sleep quality
+- **Doctor visit prep** — auto-generate summary report for appointments (April 30 primary care, Dr. Tyson sleep)
+- **Body measurements** — waist circumference in addition to weight (better fat loss indicator)
+- **AI question answering** — "why am I not losing weight", "how can I get better rest" — data-grounded + general health knowledge (Option 2); cross-domain correlation across all data sources
 
 ### Dashboard — Desktop
 Card-based layout, not static — interactive time range selectors (7d / 30d / 90d / 6mo / all time) on all trend charts:
@@ -586,7 +595,7 @@ Based on max HR formula: 220 - age (56) = **164 bpm**
 | 1 | Strength training detail | Full sets/reps vs. session-only | **Include sets/reps** (schema ready) — Craig logs 3x/week lifting |
 | 2 | Project name | Pulse, Vitals, HealthOS | Pulse (pending Craig confirmation) |
 | 3 | Apple Health export delivery | REST API push (preferred) vs. iCloud file | **REST API push** — Health Auto Export Premium POSTs directly to Pulse |
-| 4 | CPAP data | ResMed app → Apple Health → import | Phase 2, low priority |
+| 4 | CPAP data | **Google Drive** (`mcgrupp/resmed/STR.edf`) — parser built, 282 nights available | **Phase 2, solved** |
 | 5 | Oura sync frequency | Daily cron vs. on-demand | Daily at 6 AM CT |
 
 ---
@@ -614,3 +623,4 @@ Based on max HR formula: 220 - age (56) = **164 bpm**
 | 0.1 | 2026-02-26 | Initial draft |
 | 0.2 | 2026-02-26 | Added training intelligence (HR zones, adaptive routine), Health Auto Export REST API workflow, `exercise_hr_zones` + `daily_suggestions` tables, updated build phases |
 | 0.3 | 2026-02-27 | User requirements interview complete — dashboard layout, insights, goals system, proactive Telegram delivery, voice capture project scoped, medical history seeded, `goals` table added |
+| 0.4 | 2026-02-27 | Added photo food logging, alcohol by type, CPAP via Google Drive (parser built, 282 nights), doctor visit prep, body measurements, AI Q&A spec, symptom ingestion from Oura |
