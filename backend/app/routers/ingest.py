@@ -30,6 +30,27 @@ def extract_recorded_date(value: Optional[str]) -> Optional[str]:
     return timestamp.date().isoformat() if timestamp else None
 
 
+def extract_date_from_record(record: dict, *keys: str) -> Optional[str]:
+    for key in keys:
+        value = record.get(key)
+        recorded_date = extract_recorded_date(value)
+        if recorded_date is not None:
+            return recorded_date
+    return None
+
+
+def normalize_duration_minutes(value: Optional[float]) -> Optional[int]:
+    if value is None:
+        return None
+    number = float(value)
+    if number <= 0:
+        return None
+    # Oura commonly reports durations in seconds; convert when values are large.
+    if number >= 1000:
+        return int(round(number / 60.0))
+    return int(round(number))
+
+
 def classify_session_type(name: Optional[str]) -> str:
     label = (name or "").lower()
     if any(token in label for token in ("strength", "weight")):
@@ -342,5 +363,194 @@ def ingest_apple_health(payload: dict):
 
 
 @router.post("/oura")
-def ingest_oura_stub():
-    return {"status": "coming_soon"}
+def ingest_oura(payload: dict):
+    data = payload.get("data") if isinstance(payload.get("data"), dict) else payload
+    sleep_entries = data.get("sleep") or []
+    readiness_entries = data.get("readiness") or []
+    activity_entries = data.get("activity") or []
+
+    processed_sleep = 0
+    processed_readiness = 0
+    processed_activity = 0
+    skipped = 0
+
+    merged_sleep: dict[str, dict] = {}
+
+    for entry in sleep_entries:
+        recorded_date = extract_date_from_record(entry, "day", "date")
+        if recorded_date is None:
+            skipped += 1
+            continue
+        record = merged_sleep.setdefault(recorded_date, {})
+        record["duration_min"] = normalize_duration_minutes(
+            entry.get("total_sleep_duration") or entry.get("duration_min")
+        )
+        record["deep_min"] = normalize_duration_minutes(
+            entry.get("deep_sleep_duration") or entry.get("deep_min")
+        )
+        record["rem_min"] = normalize_duration_minutes(
+            entry.get("rem_sleep_duration") or entry.get("rem_min")
+        )
+        record["core_min"] = normalize_duration_minutes(
+            entry.get("light_sleep_duration") or entry.get("core_min")
+        )
+        record["awake_min"] = normalize_duration_minutes(
+            entry.get("awake_time") or entry.get("awake_min")
+        )
+        record["sleep_score"] = entry.get("score") or entry.get("sleep_score")
+        bedtime_start = entry.get("bedtime_start") or entry.get("bedtime")
+        bedtime_end = entry.get("bedtime_end") or entry.get("wake_time")
+        if bedtime_start:
+            record["bedtime"] = bedtime_start
+        if bedtime_end:
+            record["wake_time"] = bedtime_end
+        processed_sleep += 1
+
+    for entry in readiness_entries:
+        recorded_date = extract_date_from_record(entry, "day", "date")
+        if recorded_date is None:
+            skipped += 1
+            continue
+        record = merged_sleep.setdefault(recorded_date, {})
+        record["readiness_score"] = entry.get("score") or entry.get("readiness_score")
+        record["hrv"] = (
+            entry.get("hrv")
+            or entry.get("average_hrv")
+            or entry.get("hrv_balance")
+            or record.get("hrv")
+        )
+        record["resting_hr"] = (
+            entry.get("resting_heart_rate")
+            or entry.get("resting_hr")
+            or record.get("resting_hr")
+        )
+        processed_readiness += 1
+
+    conn = get_db()
+    try:
+        for recorded_date, values in merged_sleep.items():
+            existing = conn.execute(
+                """SELECT id, source
+                   FROM sleep_records
+                   WHERE recorded_date=?
+                   LIMIT 1""",
+                (recorded_date,),
+            ).fetchone()
+
+            if existing and existing["source"] not in ("oura", "apple_health"):
+                skipped += 1
+                continue
+
+            if existing:
+                conn.execute(
+                    """UPDATE sleep_records
+                       SET bedtime=?,
+                           wake_time=?,
+                           duration_min=?,
+                           deep_min=?,
+                           rem_min=?,
+                           core_min=?,
+                           awake_min=?,
+                           hrv=?,
+                           resting_hr=?,
+                           readiness_score=?,
+                           sleep_score=?,
+                           source='oura'
+                       WHERE id=?""",
+                    (
+                        values.get("bedtime"),
+                        values.get("wake_time"),
+                        values.get("duration_min"),
+                        values.get("deep_min"),
+                        values.get("rem_min"),
+                        values.get("core_min"),
+                        values.get("awake_min"),
+                        values.get("hrv"),
+                        values.get("resting_hr"),
+                        values.get("readiness_score"),
+                        values.get("sleep_score"),
+                        existing["id"],
+                    ),
+                )
+            else:
+                conn.execute(
+                    """INSERT INTO sleep_records
+                       (
+                         recorded_date,
+                         bedtime,
+                         wake_time,
+                         duration_min,
+                         deep_min,
+                         rem_min,
+                         core_min,
+                         awake_min,
+                         hrv,
+                         resting_hr,
+                         readiness_score,
+                         sleep_score,
+                         source
+                       )
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'oura')""",
+                    (
+                        recorded_date,
+                        values.get("bedtime"),
+                        values.get("wake_time"),
+                        values.get("duration_min"),
+                        values.get("deep_min"),
+                        values.get("rem_min"),
+                        values.get("core_min"),
+                        values.get("awake_min"),
+                        values.get("hrv"),
+                        values.get("resting_hr"),
+                        values.get("readiness_score"),
+                        values.get("sleep_score"),
+                    ),
+                )
+
+        for entry in activity_entries:
+            recorded_date = extract_date_from_record(entry, "day", "date")
+            if recorded_date is None:
+                skipped += 1
+                continue
+
+            metric_values = {
+                "active_calories": entry.get("active_calories")
+                or entry.get("active_energy"),
+                "steps": entry.get("steps"),
+            }
+            for metric, value in metric_values.items():
+                if value is None:
+                    continue
+                existing_metric = conn.execute(
+                    """SELECT id
+                       FROM body_metrics
+                       WHERE recorded_date=? AND metric=? AND source='oura'
+                       ORDER BY id DESC
+                       LIMIT 1""",
+                    (recorded_date, metric),
+                ).fetchone()
+                if existing_metric:
+                    conn.execute(
+                        "UPDATE body_metrics SET value=?, notes=NULL WHERE id=?",
+                        (float(value), existing_metric["id"]),
+                    )
+                else:
+                    conn.execute(
+                        """INSERT INTO body_metrics (recorded_date, metric, value, source)
+                           VALUES (?, ?, ?, 'oura')""",
+                        (recorded_date, metric, float(value)),
+                    )
+                processed_activity += 1
+
+        conn.commit()
+        return {
+            "status": "ok",
+            "processed": {
+                "sleep": processed_sleep,
+                "readiness": processed_readiness,
+                "activity": processed_activity,
+                "skipped": skipped,
+            },
+        }
+    finally:
+        conn.close()
