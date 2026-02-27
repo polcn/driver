@@ -6,6 +6,7 @@ Install dependencies:
 
 ```bash
 make install-dev
+make install-frontend
 ```
 
 Run the backend locally:
@@ -18,6 +19,12 @@ Run the current quality checks:
 
 ```bash
 make check
+```
+
+Build only the frontend scaffold:
+
+```bash
+make frontend-build
 ```
 
 Run the dependency audit separately:

@@ -18,6 +18,8 @@ If dependencies are installed in a clean environment, also run:
 make audit
 ```
 
+If your change touches the frontend scaffold, make sure `make frontend-build` still passes.
+
 ## Change expectations
 
 - Prefer small, reviewable PRs
