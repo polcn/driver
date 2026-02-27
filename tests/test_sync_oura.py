@@ -1,16 +1,24 @@
 from datetime import date
+from importlib import util
+from pathlib import Path
+import sys
 
 import httpx
 
-from scripts.sync_oura import (
-    SyncConfig,
-    build_ingest_payload,
-    default_dates,
-    fetch_oura_collection,
-    normalize_readiness_entry,
-    post_driver_ingest,
-    run_sync,
-)
+MODULE_PATH = Path(__file__).resolve().parents[1] / "scripts" / "sync_oura.py"
+MODULE_SPEC = util.spec_from_file_location("sync_oura_module", MODULE_PATH)
+assert MODULE_SPEC and MODULE_SPEC.loader
+sync_oura_module = util.module_from_spec(MODULE_SPEC)
+sys.modules[MODULE_SPEC.name] = sync_oura_module
+MODULE_SPEC.loader.exec_module(sync_oura_module)
+
+SyncConfig = sync_oura_module.SyncConfig
+build_ingest_payload = sync_oura_module.build_ingest_payload
+default_dates = sync_oura_module.default_dates
+fetch_oura_collection = sync_oura_module.fetch_oura_collection
+normalize_readiness_entry = sync_oura_module.normalize_readiness_entry
+post_driver_ingest = sync_oura_module.post_driver_ingest
+run_sync = sync_oura_module.run_sync
 
 
 def test_default_dates_returns_expected_window(monkeypatch):
@@ -19,7 +27,7 @@ def test_default_dates_returns_expected_window(monkeypatch):
         def today(cls):
             return cls(2026, 3, 12)
 
-    monkeypatch.setattr("scripts.sync_oura.date", MockDate)
+    monkeypatch.setattr(sync_oura_module, "date", MockDate)
     start, end = default_dates(days_back=3)
     assert start == "2026-03-09"
     assert end == "2026-03-11"
