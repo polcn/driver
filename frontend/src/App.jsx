@@ -9,18 +9,27 @@ const emptySnapshot = {
   suggestion: null
 };
 
-const emptyWeek = {
+const emptyTrends = {
   start: null,
   end: null,
+  days: 0,
   food_by_day: [],
-  exercise_by_day: []
+  exercise_by_day: [],
+  sleep_by_day: [],
+  weight_by_day: [],
+  waist_by_day: []
 };
 
-const emptyWeightTrend = [];
-const emptyWaistTrend = [];
 const emptyExerciseSets = {};
 const emptySleepRecord = null;
-const emptySleepTrend = [];
+
+const trendRanges = [
+  { id: "7d", label: "7d", days: 7 },
+  { id: "30d", label: "30d", days: 30 },
+  { id: "90d", label: "90d", days: 90 },
+  { id: "6mo", label: "6mo", days: 180 },
+  { id: "all", label: "All", days: 3650 }
+];
 
 function MetricCard({ label, value, target, unit }) {
   const displayValue = value ?? 0;
@@ -100,13 +109,13 @@ function formatSetSummary(set) {
   return bits.length > 0 ? bits.join(" x ") : "Logged set";
 }
 
-function buildWeeklyFoodSeries(week) {
+function buildFoodSeries(entries) {
   const maxCalories = Math.max(
     1,
-    ...week.food_by_day.map((day) => day.calories ?? 0)
+    ...entries.map((day) => day.calories ?? 0)
   );
 
-  return week.food_by_day.map((day) => ({
+  return entries.map((day) => ({
     ...day,
     height: Math.max(12, Math.round(((day.calories ?? 0) / maxCalories) * 100))
   }));
@@ -153,13 +162,12 @@ function buildSleepSeries(records) {
 
 function App() {
   const [snapshot, setSnapshot] = useState(emptySnapshot);
-  const [week, setWeek] = useState(emptyWeek);
-  const [weightTrend, setWeightTrend] = useState(emptyWeightTrend);
-  const [waistTrend, setWaistTrend] = useState(emptyWaistTrend);
+  const [trends, setTrends] = useState(emptyTrends);
   const [exerciseSets, setExerciseSets] = useState(emptyExerciseSets);
   const [sleepRecord, setSleepRecord] = useState(emptySleepRecord);
-  const [sleepTrend, setSleepTrend] = useState(emptySleepTrend);
   const [status, setStatus] = useState("loading");
+  const [trendStatus, setTrendStatus] = useState("loading");
+  const [rangeId, setRangeId] = useState("90d");
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -167,28 +175,16 @@ function App() {
 
     async function loadSnapshot() {
       try {
-        const [todayResponse, weekResponse] = await Promise.all([
-          fetch("/api/v1/dashboard/today"),
-          fetch("/api/v1/dashboard/week")
-        ]);
+        const todayResponse = await fetch("/api/v1/dashboard/today");
 
         if (!todayResponse.ok) {
           throw new Error(`Today dashboard request failed: ${todayResponse.status}`);
         }
-        if (!weekResponse.ok) {
-          throw new Error(`Week dashboard request failed: ${weekResponse.status}`);
-        }
 
-        const [todayPayload, weekPayload] = await Promise.all([
-          todayResponse.json(),
-          weekResponse.json()
-        ]);
+        const todayPayload = await todayResponse.json();
 
-        const [weightResponse, waistResponse, sleepResponse, sleepTrendResponse, setsPayload] = await Promise.all([
-          fetch(`/api/v1/metrics?metric=weight_lbs&days=14&ending=${todayPayload.date}`),
-          fetch(`/api/v1/metrics?metric=waist_in&days=14&ending=${todayPayload.date}`),
+        const [sleepResponse, setsPayload] = await Promise.all([
           fetch(`/api/v1/sleep?recorded_date=${todayPayload.date}`),
-          fetch(`/api/v1/sleep?days=14&ending=${todayPayload.date}`),
           Promise.all(
             (todayPayload.exercise ?? [])
               .filter(isStrengthSession)
@@ -202,33 +198,17 @@ function App() {
               })
           )
         ]);
-        if (!weightResponse.ok) {
-          throw new Error(`Weight trend request failed: ${weightResponse.status}`);
-        }
-        if (!waistResponse.ok) {
-          throw new Error(`Waist trend request failed: ${waistResponse.status}`);
-        }
         if (!sleepResponse.ok) {
           throw new Error(`Sleep request failed: ${sleepResponse.status}`);
         }
-        if (!sleepTrendResponse.ok) {
-          throw new Error(`Sleep trend request failed: ${sleepTrendResponse.status}`);
-        }
-        const weightPayload = await weightResponse.json();
-        const waistPayload = await waistResponse.json();
         const sleepPayload = await sleepResponse.json();
-        const sleepTrendPayload = await sleepTrendResponse.json();
         const exerciseSetsPayload = Object.fromEntries(setsPayload);
         if (!isActive) {
           return;
         }
 
         setSnapshot(todayPayload);
-        setWeek(weekPayload);
-        setWeightTrend(weightPayload);
-        setWaistTrend(waistPayload);
         setSleepRecord(sleepPayload);
-        setSleepTrend(sleepTrendPayload);
         setExerciseSets(exerciseSetsPayload);
         setStatus("ready");
       } catch (err) {
@@ -248,18 +228,58 @@ function App() {
     };
   }, []);
 
+  useEffect(() => {
+    let isActive = true;
+    const selectedRange = trendRanges.find((range) => range.id === rangeId) ?? trendRanges[2];
+
+    async function loadTrends() {
+      try {
+        setTrendStatus("loading");
+        const ending = snapshot.date ? `&ending=${snapshot.date}` : "";
+        const response = await fetch(`/api/v1/dashboard/trends?days=${selectedRange.days}${ending}`);
+        if (!response.ok) {
+          throw new Error(`Trend request failed: ${response.status}`);
+        }
+
+        const payload = await response.json();
+        if (!isActive) {
+          return;
+        }
+
+        setTrends(payload);
+        setTrendStatus("ready");
+      } catch (err) {
+        if (!isActive) {
+          return;
+        }
+
+        setError(err instanceof Error ? err.message : "Unknown error");
+        setTrendStatus("error");
+      }
+    }
+
+    loadTrends();
+
+    return () => {
+      isActive = false;
+    };
+  }, [rangeId, snapshot.date]);
+
   const food = snapshot.food ?? {};
   const targets = snapshot.targets ?? {};
-  const weeklyFood = buildWeeklyFoodSeries(week);
-  const weightSeries = buildWeightSeries(weightTrend);
-  const waistSeries = buildWeightSeries(waistTrend);
-  const sleepSeries = buildSleepSeries(sleepTrend);
+  const trendFood = buildFoodSeries(trends.food_by_day);
+  const weightSeries = buildWeightSeries(trends.weight_by_day);
+  const waistSeries = buildWeightSeries(trends.waist_by_day);
+  const sleepSeries = buildSleepSeries(trends.sleep_by_day);
   const sleep = sleepRecord ?? snapshot.sleep;
   const exerciseSummary = formatExerciseSummary(snapshot.exercise);
   const latestWeight = weightSeries.length > 0 ? weightSeries[weightSeries.length - 1].value : null;
   const weightChange = weightSeries.length > 1 ? weightSeries[weightSeries.length - 1].offset : null;
   const latestWaist = waistSeries.length > 0 ? waistSeries[waistSeries.length - 1].value : null;
   const waistChange = waistSeries.length > 1 ? waistSeries[waistSeries.length - 1].offset : null;
+  const trendCalories = trends.food_by_day.reduce((sum, day) => sum + (day.calories ?? 0), 0);
+  const trendProtein = trends.food_by_day.reduce((sum, day) => sum + (day.protein_g ?? 0), 0);
+  const selectedTrendRange = trendRanges.find((range) => range.id === rangeId) ?? trendRanges[2];
 
   return (
     <main className="page-shell">
@@ -274,7 +294,8 @@ function App() {
         <div className="hero-status">
           <span className={`status-pill status-${status}`}>{status}</span>
           <p>{snapshot.date ? `Snapshot date ${snapshot.date}` : "Waiting for data"}</p>
-          {week.start && week.end ? <p>{`Week window ${week.start} to ${week.end}`}</p> : null}
+          {trendStatus === "error" ? <p>Trend load failed</p> : null}
+          {trends.start && trends.end ? <p>{`Trend window ${trends.start} to ${trends.end}`}</p> : null}
         </div>
       </section>
 
@@ -309,6 +330,23 @@ function App() {
         />
       </section>
 
+      <section className="range-row">
+        <p className="range-label">Trend range</p>
+        <div className="range-controls" role="tablist" aria-label="Trend range">
+          {trendRanges.map((range) => (
+            <button
+              type="button"
+              key={range.id}
+              className={`range-chip ${rangeId === range.id ? "is-active" : ""}`}
+              onClick={() => setRangeId(range.id)}
+              aria-pressed={rangeId === range.id}
+            >
+              {range.label}
+            </button>
+          ))}
+        </div>
+      </section>
+
       <section className="content-grid">
         <article className="panel panel-wide-two">
           <div className="panel-header">
@@ -325,8 +363,8 @@ function App() {
             <p className="panel-copy">Log weight through `/api/v1/metrics` to populate this view.</p>
           ) : (
             <div className="trend-chart trend-chart-weight" aria-label="Weight trend">
-              {weightSeries.map((entry) => (
-                <div key={`${entry.recorded_date}-${entry.created_at}`} className="trend-column">
+              {weightSeries.map((entry, index) => (
+                <div key={`${entry.recorded_date}-${index}`} className="trend-column">
                   <span className="trend-value">{entry.value}</span>
                   <span className="trend-bar trend-bar-weight" style={{ height: `${entry.height}%` }} />
                   <span className="trend-label">{entry.recorded_date.slice(5)}</span>
@@ -348,8 +386,8 @@ function App() {
           </p>
           {waistSeries.length > 0 ? (
             <div className="trend-chart trend-chart-waist" aria-label="Waist trend">
-              {waistSeries.map((entry) => (
-                <div key={`${entry.recorded_date}-${entry.created_at}`} className="trend-column">
+              {waistSeries.map((entry, index) => (
+                <div key={`${entry.recorded_date}-${index}`} className="trend-column">
                   <span className="trend-value">{entry.value}</span>
                   <span className="trend-bar trend-bar-waist" style={{ height: `${entry.height}%` }} />
                   <span className="trend-label">{entry.recorded_date.slice(5)}</span>
@@ -431,8 +469,8 @@ function App() {
           </p>
           {sleepSeries.length > 0 ? (
             <div className="trend-chart trend-chart-sleep" aria-label="Sleep duration trend">
-              {sleepSeries.map((record) => (
-                <div key={`${record.recorded_date}-${record.created_at}`} className="trend-column">
+              {sleepSeries.map((record, index) => (
+                <div key={`${record.recorded_date}-${index}`} className="trend-column">
                   <span className="trend-value">{record.duration_min ?? 0}</span>
                   <span className="trend-bar trend-bar-sleep" style={{ height: `${record.height}%` }} />
                   <span className="trend-label">{record.recorded_date.slice(5)}</span>
@@ -452,12 +490,12 @@ function App() {
 
       <section className="content-grid lower-grid">
         <article className="panel panel-wide-two">
-          <h2>7-day intake trend</h2>
-          {weeklyFood.length === 0 ? (
-            <p className="panel-copy">No weekly food history yet.</p>
-          ) : (
+          <h2>{`${selectedTrendRange.label} intake trend`}</h2>
+          {trendStatus === "loading" ? <p className="panel-copy">Loading trend data…</p> : null}
+          {trendStatus !== "loading" && trendFood.length === 0 ? <p className="panel-copy">No food history in this window yet.</p> : null}
+          {trendStatus === "ready" && trendFood.length > 0 ? (
             <div className="trend-chart" aria-label="7 day calorie trend">
-              {weeklyFood.map((day) => (
+              {trendFood.map((day) => (
                 <div key={day.recorded_date} className="trend-column">
                   <span className="trend-value">{day.calories ?? 0}</span>
                   <span className="trend-bar" style={{ height: `${day.height}%` }} />
@@ -465,31 +503,27 @@ function App() {
                 </div>
               ))}
             </div>
-          )}
+          ) : null}
         </article>
 
         <article className="panel">
-          <h2>Week activity</h2>
+          <h2>{`${selectedTrendRange.label} activity`}</h2>
           <dl className="detail-list">
             <div>
               <dt>Food days</dt>
-              <dd>{week.food_by_day.length}</dd>
+              <dd>{trends.food_by_day.length}</dd>
             </div>
             <div>
               <dt>Exercise days</dt>
-              <dd>{week.exercise_by_day.length}</dd>
+              <dd>{trends.exercise_by_day.length}</dd>
             </div>
             <div>
               <dt>Total calories</dt>
-              <dd>
-                {week.food_by_day.reduce((sum, day) => sum + (day.calories ?? 0), 0)}
-              </dd>
+              <dd>{trendCalories}</dd>
             </div>
             <div>
               <dt>Total protein</dt>
-              <dd>
-                {week.food_by_day.reduce((sum, day) => sum + (day.protein_g ?? 0), 0)}g
-              </dd>
+              <dd>{trendProtein}g</dd>
             </div>
           </dl>
         </article>

@@ -98,6 +98,43 @@ body {
   gap: 16px;
 }
 
+.range-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0 0 16px;
+}
+
+.range-label {
+  margin: 0;
+  color: #49565f;
+  font-size: 0.92rem;
+}
+
+.range-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.range-chip {
+  border: 1px solid rgba(24, 33, 38, 0.12);
+  border-radius: 999px;
+  background: rgba(255, 252, 246, 0.88);
+  color: #39464f;
+  padding: 6px 12px;
+  font-size: 0.84rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.range-chip.is-active {
+  border-color: rgba(78, 106, 109, 0.62);
+  background: linear-gradient(90deg, rgba(212, 161, 92, 0.22), rgba(90, 128, 132, 0.24));
+  color: #25353b;
+}
+
 .grid {
   grid-template-columns: repeat(4, minmax(0, 1fr));
   margin-bottom: 16px;
@@ -322,6 +359,11 @@ body {
   .grid,
   .content-grid {
     grid-template-columns: 1fr;
+  }
+
+  .range-row {
+    flex-direction: column;
+    align-items: flex-start;
   }
 
   .panel-wide-two {
