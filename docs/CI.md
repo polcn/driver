@@ -3,13 +3,16 @@
 ## Workflows
 
 - `CI`: installs backend dependencies, compiles Python sources, runs `ruff`, runs `pytest`, and audits dependencies with `pip-audit`
-- `CodeQL`: GitHub code scanning for Python
+- `CodeQL`: GitHub code scanning for Python (runs only for public repositories in this repo setup)
 
 ## Required branch protection
 
 Protect `main` with these required status checks:
 
 - `backend`
+
+If repository plan/visibility supports CodeQL scanning, also require:
+
 - `analyze (python)`
 
 Recommended additional settings:

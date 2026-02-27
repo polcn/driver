@@ -212,6 +212,15 @@ body {
   background: linear-gradient(180deg, #8f6b2c 0%, #56766b 100%);
 }
 
+.trend-chart-sleep {
+  min-height: 160px;
+  margin-top: 12px;
+}
+
+.trend-bar-sleep {
+  background: linear-gradient(180deg, #4b678c 0%, #7f8f4c 100%);
+}
+
 .detail-list {
   display: grid;
   gap: 12px;
