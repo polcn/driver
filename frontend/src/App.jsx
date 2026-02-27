@@ -55,6 +55,22 @@ function formatExerciseSummary(exercise) {
     .join(" • ");
 }
 
+function formatExerciseMeta(session) {
+  const bits = [];
+
+  if (session.duration_min != null) {
+    bits.push(`${session.duration_min} min`);
+  }
+  if (session.calories_burned != null) {
+    bits.push(`${session.calories_burned} cal`);
+  }
+  if (session.avg_heart_rate != null) {
+    bits.push(`avg HR ${session.avg_heart_rate}`);
+  }
+
+  return bits.length > 0 ? bits.join(" · ") : "No session details yet.";
+}
+
 function buildWeeklyFoodSeries(week) {
   const maxCalories = Math.max(
     1,
@@ -256,6 +272,19 @@ function App() {
           <h2>Exercise</h2>
           <p className="panel-value">{snapshot.exercise.length}</p>
           <p className="panel-copy">{exerciseSummary}</p>
+          {snapshot.exercise.length > 0 ? (
+            <ul className="session-list">
+              {snapshot.exercise.map((session) => (
+                <li key={session.id} className="session-item">
+                  <div className="session-title-row">
+                    <strong>{session.name || session.session_type}</strong>
+                    <span className="session-type">{session.session_type}</span>
+                  </div>
+                  <p className="session-meta">{formatExerciseMeta(session)}</p>
+                </li>
+              ))}
+            </ul>
+          ) : null}
         </article>
 
         <article className="panel">

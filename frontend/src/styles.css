@@ -225,6 +225,40 @@ body {
   font-weight: 600;
 }
 
+.session-list {
+  list-style: none;
+  padding: 0;
+  margin: 16px 0 0;
+  display: grid;
+  gap: 12px;
+}
+
+.session-item {
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: rgba(24, 33, 38, 0.04);
+}
+
+.session-title-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: baseline;
+}
+
+.session-type {
+  font-family: "Courier New", monospace;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #7f5f34;
+}
+
+.session-meta {
+  margin: 8px 0 0;
+  color: #5c646a;
+}
+
 @media (max-width: 900px) {
   .hero,
   .grid,
