@@ -601,6 +601,13 @@ Based on max HR formula: 220 - age (56) = **164 bpm**
 - [x] Photo food logging API (`/api/v1/food/from-photo`)
 - [x] Dashboard: photo food quick-log form
 
+### Phase 6 — Photo Intelligence + Coaching Loop *(~1 week)*
+- [x] Photo estimate API (`/api/v1/food/photo-estimate`) with confidence + method metadata
+- [x] Photo log override flow (calories/protein edit-before-save)
+- [ ] Vision-provider quality tuning and fallback thresholds
+- [ ] Daily + weekly coaching digest persistence and dashboard surface
+- [ ] Data anomaly detection and missing-data flagging
+
 ---
 
 ## 13. Open Decisions
@@ -628,8 +635,8 @@ Based on max HR formula: 220 - age (56) = **164 bpm**
 
 ---
 
-*PRD status: Active v0.11 — Phase 5 complete*
-*Next step: phase-6 scoping (LLM image parsing integration quality pass and longitudinal coaching loops)*
+*PRD status: Active v0.13 — Phase 6 in progress*
+*Next step: phase-6 quality tuning (vision confidence calibration + coaching digest jobs)*
 
 ---
 ## Changelog
@@ -647,3 +654,4 @@ Based on max HR formula: 220 - age (56) = **164 bpm**
 | 0.10 | 2026-02-27 | Added doctor-visit report API (`/api/v1/reports/doctor-visit`) with markdown output and aggregate health summary for appointment prep |
 | 0.11 | 2026-02-27 | Added photo-food log flow endpoint (`/api/v1/food/from-photo`) for estimated macro capture with photo URL provenance and review notes |
 | 0.12 | 2026-02-27 | Added explicit health-agent log/query endpoints for food and workouts plus sleep query (`/api/v1/agent/log-food`, `/api/v1/agent/log-workout`, `/api/v1/agent/sleep`) |
+| 0.13 | 2026-02-27 | Started Phase 6 slice 1: photo estimate endpoint with method/confidence metadata, optional vision integration path, and dashboard edit-before-save overrides for photo logging |

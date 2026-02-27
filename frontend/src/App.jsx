@@ -191,6 +191,10 @@ function App() {
   const [photoDescription, setPhotoDescription] = useState("");
   const [photoUrl, setPhotoUrl] = useState("");
   const [photoMealType, setPhotoMealType] = useState("meal");
+  const [photoCalories, setPhotoCalories] = useState("");
+  const [photoProtein, setPhotoProtein] = useState("");
+  const [photoAnalysisMethod, setPhotoAnalysisMethod] = useState("");
+  const [photoConfidence, setPhotoConfidence] = useState("");
   const [photoStatus, setPhotoStatus] = useState("");
   const [doctorReport, setDoctorReport] = useState(emptyDoctorReport);
   const [reportDays, setReportDays] = useState(30);
@@ -350,7 +354,9 @@ function App() {
           description: photoDescription,
           photo_url: photoUrl,
           servings: 1.0,
-          source: "agent"
+          source: "agent",
+          calories: photoCalories === "" ? undefined : Number(photoCalories),
+          protein_g: photoProtein === "" ? undefined : Number(photoProtein)
         })
       });
       if (!response.ok) {
@@ -360,9 +366,41 @@ function App() {
       setPhotoStatus("saved");
       setPhotoDescription("");
       setPhotoUrl("");
+      setPhotoCalories("");
+      setPhotoProtein("");
+      setPhotoAnalysisMethod("");
+      setPhotoConfidence("");
       await loadSnapshot();
     } catch (err) {
       setPhotoStatus(err instanceof Error ? err.message : "submit failed");
+    }
+  }
+
+  async function handlePhotoAnalyze(event) {
+    event.preventDefault();
+    setPhotoStatus("analyzing");
+    try {
+      const response = await fetch("/api/v1/food/photo-estimate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          description: photoDescription,
+          photo_url: photoUrl,
+          servings: 1.0,
+          use_vision: true
+        })
+      });
+      if (!response.ok) {
+        throw new Error(`Photo analyze failed: ${response.status}`);
+      }
+      const payload = await response.json();
+      setPhotoCalories(String(payload.estimate.calories ?? ""));
+      setPhotoProtein(String(payload.estimate.protein_g ?? ""));
+      setPhotoAnalysisMethod(payload.analysis_method ?? "");
+      setPhotoConfidence(String(payload.analysis_confidence ?? ""));
+      setPhotoStatus("analyzed");
+    } catch (err) {
+      setPhotoStatus(err instanceof Error ? err.message : "analyze failed");
     }
   }
 
@@ -523,7 +561,7 @@ function App() {
 
       <section className="panel">
         <h2>Photo food quick log</h2>
-        <p className="panel-copy">Adds an estimated entry from a photo URL and short description.</p>
+        <p className="panel-copy">Analyze image + description, optionally edit macros, then log.</p>
         <form className="photo-form" onSubmit={handlePhotoSubmit}>
           <input
             value={photoDescription}
@@ -545,8 +583,28 @@ function App() {
             <option value="snack">snack</option>
             <option value="drink">drink</option>
           </select>
+          <input
+            type="number"
+            step="1"
+            value={photoCalories}
+            onChange={(event) => setPhotoCalories(event.target.value)}
+            placeholder="Calories override (optional)"
+          />
+          <input
+            type="number"
+            step="1"
+            value={photoProtein}
+            onChange={(event) => setPhotoProtein(event.target.value)}
+            placeholder="Protein g override (optional)"
+          />
+          <button type="button" onClick={handlePhotoAnalyze}>Analyze Photo</button>
           <button type="submit">Log Photo Meal</button>
         </form>
+        {photoAnalysisMethod ? (
+          <p className="panel-copy">
+            Analysis: {photoAnalysisMethod} · confidence {photoConfidence || "n/a"}
+          </p>
+        ) : null}
         {photoStatus ? <p className="panel-copy">Status: {photoStatus}</p> : null}
       </section>
 
