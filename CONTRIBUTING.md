@@ -18,7 +18,7 @@ If dependencies are installed in a clean environment, also run:
 make audit
 ```
 
-If your change touches the frontend scaffold, make sure `make frontend-build` still passes.
+If your change touches the frontend scaffold, make sure `make frontend-smoke` still passes.
 
 ## Change expectations
 

@@ -27,6 +27,12 @@ Build only the frontend scaffold:
 make frontend-build
 ```
 
+Run the frontend smoke check:
+
+```bash
+make frontend-smoke
+```
+
 Run the dependency audit separately:
 
 ```bash

@@ -9,7 +9,7 @@
 - [ ] `ruff check backend tests`
 - [ ] `ruff format --check backend tests`
 - [ ] `PYTHONPATH=backend pytest -q tests`
-- [ ] `cd frontend && npm run build`
+- [ ] `cd frontend && npm run smoke`
 
 ## Review Focus
 

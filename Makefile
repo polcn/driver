@@ -1,6 +1,6 @@
 PYTHONPATH := backend
 
-.PHONY: install-dev install-frontend compile lint format-check test audit frontend-build check run
+.PHONY: install-dev install-frontend compile lint format-check test audit frontend-build frontend-smoke check run
 
 install-dev:
 	python3 -m pip install --upgrade pip
@@ -27,7 +27,10 @@ audit:
 frontend-build:
 	cd frontend && npm run build
 
-check: compile lint format-check test frontend-build
+frontend-smoke:
+	cd frontend && npm run smoke
+
+check: compile lint format-check test frontend-smoke
 
 run:
 	uvicorn app.main:app --app-dir backend --host 0.0.0.0 --port 8000
