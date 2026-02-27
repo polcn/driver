@@ -13,7 +13,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="Pulse API",
+    title="Driver API",
     version="0.1.0",
     description="Personal health platform API",
     lifespan=lifespan,
@@ -32,4 +32,4 @@ app.include_router(dashboard.router, prefix="/api/v1/dashboard", tags=["dashboar
 
 @app.get("/health")
 def health_check():
-    return {"status": "ok", "service": "pulse"}
+    return {"status": "ok", "service": "driver"}

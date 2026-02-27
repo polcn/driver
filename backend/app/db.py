@@ -2,7 +2,7 @@ import sqlite3
 import os
 from pathlib import Path
 
-DATABASE_PATH = os.getenv("DATABASE_PATH", "/data/pulse.db")
+DATABASE_PATH = os.getenv("DATABASE_PATH", "/data/driver.db")
 
 
 def get_db() -> sqlite3.Connection:

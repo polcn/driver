@@ -1,4 +1,4 @@
-# Pulse
+# Driver
 
 Personal health platform. Self-hosted on Mac Mini, accessible via Tailscale.
 

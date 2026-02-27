@@ -1,4 +1,4 @@
-# Pulse — Personal Health Platform
+# Driver — Personal Health Platform
 ## Product Requirements Document
 *Version 0.4 — 2026-02-27*
 *Owner: Craig | Architect: McGrupp*
@@ -7,7 +7,7 @@
 
 ## 1. Overview
 
-**Pulse** is a self-hosted personal health platform running on Craig's Mac Mini, accessible via browser (desktop + mobile via Tailscale). It consolidates food intake, exercise, body metrics, bloodwork/labs, supplements, medications, and medical history into a single queryable system with a dashboard UI and a dedicated AI agent interface.
+Driver is a self-hosted personal health platform running on Craig's Mac Mini, accessible via browser (desktop + mobile via Tailscale). It consolidates food intake, exercise, body metrics, bloodwork/labs, supplements, medications, and medical history into a single queryable system with a dashboard UI and a dedicated AI agent interface.
 
 The system is designed to be built incrementally, with each phase delivering working software. It is not a prototype — it is built to last.
 
@@ -122,7 +122,7 @@ One user: Craig. The agent (McGrupp) is a non-human client of the API.
 │                              │               │
 │                     ┌────────▼─────────┐    │
 │                     │  SQLite (WAL)    │    │
-│                     │  pulse.db        │    │
+│                     │  driver.db        │    │
 │                     └──────────────────┘    │
 │                                              │
 │  ┌──────────────────────────────────────┐   │
@@ -328,7 +328,7 @@ One user: Craig. The agent (McGrupp) is a non-human client of the API.
 
 ## 7. API Design
 
-Base URL: `http://pulse.local/api/v1` (or Tailscale URL)
+Base URL: `http://driver.local/api/v1` (or Tailscale URL)
 
 ### 7.1 Food
 | Method | Path | Description |
@@ -435,12 +435,12 @@ Base URL: `http://pulse.local/api/v1` (or Tailscale URL)
 
 The health agent is a persistent OpenClaw sub-agent that:
 - Accepts natural language from Craig via Telegram ("just had a protein shake, 2 scoops Naked Whey")
-- Parses intent and calls the Pulse API
+- Parses intent and calls the Driver API
 - Returns confirmation with running daily totals
 - Handles date clarification ("was that today or last night?")
 - Can answer queries ("what's my protein total today?" → GET /food/summary)
 
-The agent does **not** read files or query SQLite directly — it is a REST client of the Pulse API only.
+The agent does **not** read files or query SQLite directly — it is a REST client of the Driver API only.
 
 **Agent triggers (examples):**
 - `"log: [food]"` → parse and POST to /food
@@ -546,7 +546,7 @@ Based on max HR formula: 220 - age (56) = **164 bpm**
 - Sleep (if tracked by Apple Watch) → `sleep_records` (Oura is primary; Apple Watch is fallback/cross-reference)
 
 ### 11.3 Migration
-- Existing `health.db` food entries (54 rows, Feb 20–25) → migrate to Pulse schema
+- Existing `health.db` food entries (54 rows, Feb 20–25) → migrate to Driver schema
 - One-time migration script, keep old DB as archive
 
 ---
@@ -593,8 +593,8 @@ Based on max HR formula: 220 - age (56) = **164 bpm**
 | # | Decision | Options | Status |
 |---|----------|---------|--------|
 | 1 | Strength training detail | Full sets/reps vs. session-only | **Include sets/reps** (schema ready) — Craig logs 3x/week lifting |
-| 2 | Project name | Pulse, Vitals, HealthOS | Pulse (pending Craig confirmation) |
-| 3 | Apple Health export delivery | REST API push (preferred) vs. iCloud file | **REST API push** — Health Auto Export Premium POSTs directly to Pulse |
+| 2 | Project name | Pulse, Vitals, HealthOS | Driver |
+| 3 | Apple Health export delivery | REST API push (preferred) vs. iCloud file | **REST API push** — Health Auto Export Premium POSTs directly to Driver |
 | 4 | CPAP data | **Google Drive** (`mcgrupp/resmed/STR.edf`) — parser built, 282 nights available | **Phase 2, solved** |
 | 5 | Oura sync frequency | Daily cron vs. on-demand | Daily at 6 AM CT |
 

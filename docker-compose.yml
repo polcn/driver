@@ -4,7 +4,7 @@ services:
     ports:
       - "8100:8000"
     volumes:
-      - pulse_data:/data
+      - driver_data:/data
     env_file:
       - .env
     restart: unless-stopped
@@ -18,4 +18,4 @@ services:
     restart: unless-stopped
 
 volumes:
-  pulse_data:
+  driver_data:

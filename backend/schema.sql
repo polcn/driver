@@ -1,4 +1,4 @@
--- Pulse database schema
+-- Driver database schema
 -- SQLite with WAL mode for concurrent reads
 
 PRAGMA journal_mode=WAL;
