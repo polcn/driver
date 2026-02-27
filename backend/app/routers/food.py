@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import Optional
-from datetime import date, datetime
+from datetime import date
 
 from ..db import get_db
 
@@ -128,6 +128,37 @@ def get_daily_summary(date: str):
             "sodium_mg": target_map.get("sodium_mg"),
         }
         return result
+    finally:
+        conn.close()
+
+
+@router.get("/summary/week")
+def get_weekly_summary(ending: str):
+    conn = get_db()
+    try:
+        rows = conn.execute(
+            """SELECT
+                recorded_date,
+                COUNT(*) as entry_count,
+                ROUND(SUM(calories), 1) as calories,
+                ROUND(SUM(protein_g), 1) as protein_g,
+                ROUND(SUM(carbs_g), 1) as carbs_g,
+                ROUND(SUM(fat_g), 1) as fat_g,
+                ROUND(SUM(fiber_g), 1) as fiber_g,
+                ROUND(SUM(sodium_mg), 0) as sodium_mg,
+                ROUND(SUM(alcohol_calories), 0) as alcohol_calories
+               FROM food_entries
+               WHERE recorded_date BETWEEN date(?, '-6 days') AND ?
+                 AND deleted_at IS NULL
+               GROUP BY recorded_date
+               ORDER BY recorded_date""",
+            (ending, ending),
+        ).fetchall()
+
+        return {
+            "ending": ending,
+            "days": [row_to_dict(row) for row in rows],
+        }
     finally:
         conn.close()
 

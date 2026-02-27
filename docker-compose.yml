@@ -9,13 +9,5 @@ services:
       - .env
     restart: unless-stopped
 
-  frontend:
-    build: ./frontend
-    ports:
-      - "8101:80"
-    depends_on:
-      - backend
-    restart: unless-stopped
-
 volumes:
   driver_data:
