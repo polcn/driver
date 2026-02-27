@@ -33,6 +33,22 @@ def row_to_dict(row) -> dict:
     return dict(row)
 
 
+EXERCISE_SESSION_SELECT = """SELECT
+                               id,
+                               recorded_date,
+                               session_type,
+                               name,
+                               duration_min,
+                               calories_burned,
+                               avg_heart_rate,
+                               max_heart_rate,
+                               source,
+                               notes,
+                               created_at,
+                               deleted_at
+                             FROM exercise_sessions"""
+
+
 @router.post("/sessions", status_code=201)
 def create_exercise_session(entry: ExerciseSessionCreate):
     conn = get_db()
@@ -65,7 +81,7 @@ def create_exercise_session(entry: ExerciseSessionCreate):
         )
         conn.commit()
         row = conn.execute(
-            "SELECT * FROM exercise_sessions WHERE id=?",
+            f"{EXERCISE_SESSION_SELECT} WHERE id=?",
             (cur.lastrowid,),
         ).fetchone()
         return row_to_dict(row)
@@ -79,19 +95,17 @@ def get_exercise_sessions(date: Optional[date] = None):
     try:
         if date is None:
             rows = conn.execute(
-                """SELECT *
-                   FROM exercise_sessions
-                   WHERE deleted_at IS NULL
-                   ORDER BY recorded_date DESC, created_at DESC
-                   LIMIT 100"""
+                f"""{EXERCISE_SESSION_SELECT}
+                    WHERE deleted_at IS NULL
+                    ORDER BY recorded_date DESC, created_at DESC
+                    LIMIT 100"""
             ).fetchall()
         else:
             rows = conn.execute(
-                """SELECT *
-                   FROM exercise_sessions
-                   WHERE recorded_date = ?
-                     AND deleted_at IS NULL
-                   ORDER BY created_at""",
+                f"""{EXERCISE_SESSION_SELECT}
+                    WHERE recorded_date = ?
+                      AND deleted_at IS NULL
+                    ORDER BY created_at""",
                 (str(date),),
             ).fetchall()
 

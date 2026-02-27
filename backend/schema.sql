@@ -40,6 +40,7 @@ CREATE TABLE IF NOT EXISTS exercise_sessions (
     recorded_date   DATE NOT NULL,
     session_type    TEXT NOT NULL,  -- strength, cardio, walk, yoga, etc.
     name            TEXT,
+    external_id     TEXT,
     duration_min    INTEGER,
     calories_burned REAL,
     avg_heart_rate  INTEGER,
@@ -51,6 +52,9 @@ CREATE TABLE IF NOT EXISTS exercise_sessions (
 );
 
 CREATE INDEX IF NOT EXISTS idx_exercise_date ON exercise_sessions(recorded_date) WHERE deleted_at IS NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS uq_exercise_source_external_id
+ON exercise_sessions(source, external_id)
+WHERE external_id IS NOT NULL;
 
 CREATE TABLE IF NOT EXISTS exercise_sets (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -110,6 +114,9 @@ CREATE TABLE IF NOT EXISTS body_metrics (
 );
 
 CREATE INDEX IF NOT EXISTS idx_metrics_date_metric ON body_metrics(recorded_date, metric);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_body_metrics_recorded_metric_source
+ON body_metrics(recorded_date, metric, source)
+WHERE source = 'apple_health';
 
 -- ─────────────────────────────────────────
 -- LABS / BLOODWORK
