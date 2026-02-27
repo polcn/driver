@@ -38,7 +38,9 @@ def classify_session_type(name: Optional[str]) -> str:
         return "cardio"
     if any(token in label for token in ("cycling", "bike")):
         return "cardio"
-    if any(token in label for token in ("stair", "elliptical", "rowing", "hiit", "cardio")):
+    if any(
+        token in label for token in ("stair", "elliptical", "rowing", "hiit", "cardio")
+    ):
         return "cardio"
     if any(token in label for token in ("yoga", "stretch", "pilates")):
         return "flexibility"
@@ -219,9 +221,13 @@ def ingest_apple_health(payload: dict):
                     )
             active_energy = workout.get("activeEnergy") or {}
             heart_rates = workout.get("heartRateData") or []
-            heart_values = [float(p["qty"]) for p in heart_rates if p.get("qty") is not None]
+            heart_values = [
+                float(p["qty"]) for p in heart_rates if p.get("qty") is not None
+            ]
             avg_heart_rate = (
-                int(round(sum(heart_values) / len(heart_values))) if heart_values else None
+                int(round(sum(heart_values) / len(heart_values)))
+                if heart_values
+                else None
             )
             max_heart_rate = int(round(max(heart_values))) if heart_values else None
 

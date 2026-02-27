@@ -229,7 +229,9 @@ def test_ingest_sleep_analysis_does_not_overwrite_oura(client, db_module_fixture
         conn.close()
 
 
-def test_ingest_workout_without_heart_rate_data_does_not_create_zones(client, db_module_fixture):
+def test_ingest_workout_without_heart_rate_data_does_not_create_zones(
+    client, db_module_fixture
+):
     payload = build_payload(
         workouts=[
             {
