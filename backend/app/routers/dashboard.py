@@ -28,7 +28,11 @@ def get_today(target_date: str = None):
 
         # Targets
         targets_rows = conn.execute(
-            "SELECT metric, value FROM targets WHERE effective_date <= ? ORDER BY effective_date DESC",
+            """SELECT t1.metric, t1.value FROM targets t1
+               WHERE t1.effective_date = (
+                   SELECT MAX(t2.effective_date) FROM targets t2
+                   WHERE t2.metric = t1.metric AND t2.effective_date <= ?
+               )""",
             (today,)
         ).fetchall()
         targets = {r["metric"]: r["value"] for r in targets_rows}

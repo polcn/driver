@@ -20,6 +20,8 @@ CREATE TABLE IF NOT EXISTS food_entries (
     sodium_mg       REAL,
     alcohol_g       REAL,
     alcohol_calories REAL,
+    alcohol_type    TEXT CHECK(alcohol_type IN ('beer','wine','spirits','cocktail')),  -- nullable
+    photo_url       TEXT,           -- reference to photo for photo-based food logging
     servings        REAL NOT NULL DEFAULT 1.0,
     is_estimated    INTEGER NOT NULL DEFAULT 0,
     source          TEXT NOT NULL DEFAULT 'manual' CHECK(source IN ('manual','agent','apple_health')),
@@ -86,7 +88,11 @@ CREATE TABLE IF NOT EXISTS sleep_records (
     readiness_score INTEGER,
     sleep_score     INTEGER,
     cpap_used       INTEGER,  -- 0/1
-    source          TEXT NOT NULL DEFAULT 'oura' CHECK(source IN ('oura','apple_health','manual')),
+    cpap_ahi        REAL,     -- apnea-hypopnea index
+    cpap_hours      REAL,     -- compliance hours
+    cpap_leak_95    REAL,     -- 95th percentile leak rate
+    cpap_pressure_avg REAL,   -- average pressure
+    source          TEXT NOT NULL DEFAULT 'oura' CHECK(source IN ('oura','apple_health','manual','cpap')),
     created_at      DATETIME NOT NULL DEFAULT (datetime('now'))
 );
 
@@ -202,6 +208,31 @@ CREATE TABLE IF NOT EXISTS targets (
     value           REAL NOT NULL,
     effective_date  DATE NOT NULL,
     notes           TEXT,
+    created_at      DATETIME NOT NULL DEFAULT (datetime('now'))
+);
+
+-- ─────────────────────────────────────────
+-- GOALS
+-- ─────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS goals (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    name            TEXT NOT NULL,           -- e.g. "Lose weight", "Reduce alcohol"
+    metric          TEXT NOT NULL,           -- weight_lbs, alcohol_calories, sodium_mg, etc.
+    goal_type       TEXT NOT NULL CHECK(goal_type IN ('target','directional')),
+    target_value    REAL,                    -- for hard targets
+    direction       TEXT CHECK(direction IN ('up','down')),  -- for directional goals
+    start_date      DATE NOT NULL,
+    target_date     DATE,                    -- nullable deadline
+    active          INTEGER NOT NULL DEFAULT 1,
+    notes           TEXT,
+    created_at      DATETIME NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS goal_plans (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    goal_id         INTEGER NOT NULL REFERENCES goals(id),
+    plan            TEXT NOT NULL,           -- AI-generated plan in markdown
+    version         INTEGER NOT NULL DEFAULT 1,
     created_at      DATETIME NOT NULL DEFAULT (datetime('now'))
 );
 

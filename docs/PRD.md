@@ -1,6 +1,6 @@
 # Driver — Personal Health Platform
 ## Product Requirements Document
-*Version 0.4 — 2026-02-27*
+*Version 0.5 — 2026-02-27*
 *Owner: Craig | Architect: McGrupp*
 
 ---
@@ -137,7 +137,7 @@ One user: Craig. The agent (McGrupp) is a non-human client of the API.
 ```
 
 **Auth**: None. Tailscale network perimeter is sufficient for personal use.
-**Port**: Internal Docker port (e.g. 3100), exposed via Tailscale.
+**Ports**: Backend 8100 (→ 8000 internal), Frontend 8101 (→ 80 internal), exposed via Tailscale.
 
 ---
 
@@ -167,6 +167,8 @@ One user: Craig. The agent (McGrupp) is a non-human client of the API.
 | sodium_mg | REAL | |
 | alcohol_g | REAL | nullable |
 | alcohol_calories | REAL | nullable |
+| alcohol_type | TEXT | nullable — beer, wine, spirits, cocktail |
+| photo_url | TEXT | nullable — reference to photo for photo-based logging |
 | servings | REAL | default 1.0 |
 | is_estimated | INTEGER | 0/1 |
 | source | TEXT | manual, agent |
@@ -184,7 +186,8 @@ One user: Craig. The agent (McGrupp) is a non-human client of the API.
 | duration_min | INTEGER | nullable |
 | calories_burned | REAL | nullable |
 | avg_heart_rate | INTEGER | nullable |
-| source | TEXT | manual, oura, apple_health |
+| max_heart_rate | INTEGER | nullable |
+| source | TEXT | manual, oura, apple_health, agent |
 | notes | TEXT | nullable |
 | created_at | DATETIME | |
 | deleted_at | DATETIME | nullable |
@@ -265,7 +268,7 @@ One user: Craig. The agent (McGrupp) is a non-human client of the API.
 | Column | Type | Notes |
 |--------|------|-------|
 | id | INTEGER PK | |
-| recorded_date | DATE | Night of sleep |
+| recorded_date | DATE | Night of sleep (UNIQUE — one record per night, upsert on conflict) |
 | bedtime | DATETIME | nullable |
 | wake_time | DATETIME | nullable |
 | duration_min | INTEGER | nullable |
@@ -276,7 +279,11 @@ One user: Craig. The agent (McGrupp) is a non-human client of the API.
 | readiness_score | INTEGER | nullable — Oura |
 | sleep_score | INTEGER | nullable — Oura |
 | cpap_used | INTEGER | 0/1 — nullable |
-| source | TEXT | oura, apple_health, manual |
+| cpap_ahi | REAL | nullable — apnea-hypopnea index |
+| cpap_hours | REAL | nullable — compliance hours |
+| cpap_leak_95 | REAL | nullable — 95th percentile leak rate |
+| cpap_pressure_avg | REAL | nullable — average pressure |
+| source | TEXT | oura, apple_health, manual, cpap |
 | created_at | DATETIME | |
 
 #### `medical_history`
@@ -613,7 +620,7 @@ Based on max HR formula: 220 - age (56) = **164 bpm**
 
 ---
 
-*PRD status: DRAFT v0.2 — pending Craig review*
+*PRD status: DRAFT v0.5 — pending Craig review*
 *Next step: Phase 1 kickoff — Docker + schema + food API*
 
 ---
@@ -624,3 +631,4 @@ Based on max HR formula: 220 - age (56) = **164 bpm**
 | 0.2 | 2026-02-26 | Added training intelligence (HR zones, adaptive routine), Health Auto Export REST API workflow, `exercise_hr_zones` + `daily_suggestions` tables, updated build phases |
 | 0.3 | 2026-02-27 | User requirements interview complete — dashboard layout, insights, goals system, proactive Telegram delivery, voice capture project scoped, medical history seeded, `goals` table added |
 | 0.4 | 2026-02-27 | Added photo food logging, alcohol by type, CPAP via Google Drive (parser built, 282 nights), doctor visit prep, body measurements, AI Q&A spec, symptom ingestion from Oura |
+| 0.5 | 2026-02-27 | PRD review fixes: added `goals` + `goal_plans` tables to schema; added CPAP detail columns (`cpap_ahi`, `cpap_hours`, `cpap_leak_95`, `cpap_pressure_avg`) to `sleep_records`; added `alcohol_type` and `photo_url` to `food_entries`; added `max_heart_rate` to `exercise_sessions` spec; noted UNIQUE constraint on `sleep_records.recorded_date`; fixed port numbers to match docker-compose (8100/8101); fixed targets query to correctly return latest per metric; fixed PATCH handler to support field clearing |

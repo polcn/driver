@@ -20,6 +20,8 @@ class FoodEntryCreate(BaseModel):
     sodium_mg: Optional[float] = None
     alcohol_g: Optional[float] = None
     alcohol_calories: Optional[float] = None
+    alcohol_type: Optional[str] = None
+    photo_url: Optional[str] = None
     servings: float = 1.0
     is_estimated: bool = False
     source: str = "manual"
@@ -37,6 +39,8 @@ class FoodEntryUpdate(BaseModel):
     sodium_mg: Optional[float] = None
     alcohol_g: Optional[float] = None
     alcohol_calories: Optional[float] = None
+    alcohol_type: Optional[str] = None
+    photo_url: Optional[str] = None
     servings: Optional[float] = None
     is_estimated: Optional[bool] = None
     notes: Optional[str] = None
@@ -53,12 +57,13 @@ def create_food_entry(entry: FoodEntryCreate):
         cur = conn.execute(
             """INSERT INTO food_entries
                (recorded_date, meal_type, name, calories, protein_g, carbs_g, fat_g,
-                fiber_g, sodium_mg, alcohol_g, alcohol_calories, servings,
-                is_estimated, source, notes)
-               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                fiber_g, sodium_mg, alcohol_g, alcohol_calories, alcohol_type,
+                photo_url, servings, is_estimated, source, notes)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
             (str(entry.recorded_date), entry.meal_type, entry.name,
              entry.calories, entry.protein_g, entry.carbs_g, entry.fat_g,
              entry.fiber_g, entry.sodium_mg, entry.alcohol_g, entry.alcohol_calories,
+             entry.alcohol_type, entry.photo_url,
              entry.servings, int(entry.is_estimated), entry.source, entry.notes)
         )
         conn.commit()
@@ -106,8 +111,11 @@ def get_daily_summary(date: str):
         ).fetchone()
 
         targets = conn.execute(
-            """SELECT metric, value FROM targets
-               WHERE effective_date <= ? ORDER BY effective_date DESC""",
+            """SELECT t1.metric, t1.value FROM targets t1
+               WHERE t1.effective_date = (
+                   SELECT MAX(t2.effective_date) FROM targets t2
+                   WHERE t2.metric = t1.metric AND t2.effective_date <= ?
+               )""",
             (date,)
         ).fetchall()
         target_map = {r["metric"]: r["value"] for r in targets}
@@ -134,7 +142,7 @@ def update_food_entry(entry_id: int, update: FoodEntryUpdate):
         if not row:
             raise HTTPException(status_code=404, detail="Entry not found")
 
-        fields = {k: v for k, v in update.model_dump().items() if v is not None}
+        fields = update.model_dump(exclude_unset=True)
         if not fields:
             return row_to_dict(row)
 
