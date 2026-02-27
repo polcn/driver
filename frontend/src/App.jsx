@@ -6,7 +6,8 @@ const emptySnapshot = {
   targets: {},
   exercise: [],
   sleep: null,
-  suggestion: null
+  suggestion: null,
+  insights: []
 };
 
 const emptyWeek = {
@@ -284,6 +285,19 @@ function App() {
           <p>{error}</p>
         </section>
       ) : null}
+
+      <section className="panel insights-panel">
+        <h2>Narrative insights</h2>
+        {snapshot.insights.length === 0 ? (
+          <p className="panel-copy">Insights will appear as more sleep, recovery, and intake history accumulates.</p>
+        ) : (
+          <ul className="insights-list">
+            {snapshot.insights.map((insight, index) => (
+              <li key={`${snapshot.date}-${index}`}>{insight}</li>
+            ))}
+          </ul>
+        )}
+      </section>
 
       <section className="grid">
         <MetricCard
