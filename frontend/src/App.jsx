@@ -16,6 +16,8 @@ const emptyWeek = {
   exercise_by_day: []
 };
 
+const emptyWeightTrend = [];
+
 function MetricCard({ label, value, target, unit }) {
   const displayValue = value ?? 0;
   const displayTarget = target ?? null;
@@ -65,9 +67,27 @@ function buildWeeklyFoodSeries(week) {
   }));
 }
 
+function buildWeightSeries(entries) {
+  if (entries.length === 0) {
+    return [];
+  }
+
+  const values = entries.map((entry) => entry.value ?? 0);
+  const minValue = Math.min(...values);
+  const maxValue = Math.max(...values);
+  const spread = Math.max(1, maxValue - minValue);
+
+  return entries.map((entry) => ({
+    ...entry,
+    height: Math.max(14, Math.round((((entry.value ?? minValue) - minValue) / spread) * 100)),
+    offset: Number((entry.value - entries[0].value).toFixed(1))
+  }));
+}
+
 function App() {
   const [snapshot, setSnapshot] = useState(emptySnapshot);
   const [week, setWeek] = useState(emptyWeek);
+  const [weightTrend, setWeightTrend] = useState(emptyWeightTrend);
   const [status, setStatus] = useState("loading");
   const [error, setError] = useState("");
 
@@ -92,12 +112,21 @@ function App() {
           todayResponse.json(),
           weekResponse.json()
         ]);
+
+        const weightResponse = await fetch(
+          `/api/v1/metrics?metric=weight_lbs&days=14&ending=${todayPayload.date}`
+        );
+        if (!weightResponse.ok) {
+          throw new Error(`Weight trend request failed: ${weightResponse.status}`);
+        }
+        const weightPayload = await weightResponse.json();
         if (!isActive) {
           return;
         }
 
         setSnapshot(todayPayload);
         setWeek(weekPayload);
+        setWeightTrend(weightPayload);
         setStatus("ready");
       } catch (err) {
         if (!isActive) {
@@ -119,7 +148,10 @@ function App() {
   const food = snapshot.food ?? {};
   const targets = snapshot.targets ?? {};
   const weeklyFood = buildWeeklyFoodSeries(week);
+  const weightSeries = buildWeightSeries(weightTrend);
   const exerciseSummary = formatExerciseSummary(snapshot.exercise);
+  const latestWeight = weightSeries.length > 0 ? weightSeries[weightSeries.length - 1].value : null;
+  const weightChange = weightSeries.length > 1 ? weightSeries[weightSeries.length - 1].offset : null;
 
   return (
     <main className="page-shell">
@@ -170,6 +202,56 @@ function App() {
       </section>
 
       <section className="content-grid">
+        <article className="panel panel-wide-two">
+          <div className="panel-header">
+            <div>
+              <h2>Weight trend</h2>
+              <p className="panel-copy">
+                {latestWeight == null
+                  ? "No weight entries yet."
+                  : `Latest ${latestWeight} lbs${weightChange == null ? "" : ` · ${weightChange > 0 ? "+" : ""}${weightChange} vs first point`}`}
+              </p>
+            </div>
+          </div>
+          {weightSeries.length === 0 ? (
+            <p className="panel-copy">Log weight through `/api/v1/metrics` to populate this view.</p>
+          ) : (
+            <div className="trend-chart trend-chart-weight" aria-label="Weight trend">
+              {weightSeries.map((entry) => (
+                <div key={`${entry.recorded_date}-${entry.created_at}`} className="trend-column">
+                  <span className="trend-value">{entry.value}</span>
+                  <span className="trend-bar trend-bar-weight" style={{ height: `${entry.height}%` }} />
+                  <span className="trend-label">{entry.recorded_date.slice(5)}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </article>
+
+        <article className="panel">
+          <h2>Current balance</h2>
+          <dl className="detail-list">
+            <div>
+              <dt>Carbs</dt>
+              <dd>{food.carbs_g ?? 0}g</dd>
+            </div>
+            <div>
+              <dt>Fat</dt>
+              <dd>{food.fat_g ?? 0}g</dd>
+            </div>
+            <div>
+              <dt>Fiber</dt>
+              <dd>{food.fiber_g ?? 0}g</dd>
+            </div>
+            <div>
+              <dt>Alcohol cals</dt>
+              <dd>{food.alcohol_calories ?? 0}</dd>
+            </div>
+          </dl>
+        </article>
+      </section>
+
+      <section className="content-grid">
         <article className="panel">
           <h2>Exercise</h2>
           <p className="panel-value">{snapshot.exercise.length}</p>
@@ -215,23 +297,27 @@ function App() {
         </article>
 
         <article className="panel">
-          <h2>Current balance</h2>
+          <h2>Week activity</h2>
           <dl className="detail-list">
             <div>
-              <dt>Carbs</dt>
-              <dd>{food.carbs_g ?? 0}g</dd>
+              <dt>Food days</dt>
+              <dd>{week.food_by_day.length}</dd>
             </div>
             <div>
-              <dt>Fat</dt>
-              <dd>{food.fat_g ?? 0}g</dd>
+              <dt>Exercise days</dt>
+              <dd>{week.exercise_by_day.length}</dd>
             </div>
             <div>
-              <dt>Fiber</dt>
-              <dd>{food.fiber_g ?? 0}g</dd>
+              <dt>Total calories</dt>
+              <dd>
+                {week.food_by_day.reduce((sum, day) => sum + (day.calories ?? 0), 0)}
+              </dd>
             </div>
             <div>
-              <dt>Alcohol cals</dt>
-              <dd>{food.alcohol_calories ?? 0}</dd>
+              <dt>Total protein</dt>
+              <dd>
+                {week.food_by_day.reduce((sum, day) => sum + (day.protein_g ?? 0), 0)}g
+              </dd>
             </div>
           </dl>
         </article>

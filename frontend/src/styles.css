@@ -146,6 +146,13 @@ body {
   font-size: 1.2rem;
 }
 
+.panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: start;
+  gap: 16px;
+}
+
 .panel-wide {
   grid-column: span 1;
 }
@@ -186,6 +193,14 @@ body {
   min-height: 12px;
   border-radius: 16px 16px 6px 6px;
   background: linear-gradient(180deg, #d4a15c 0%, #6a8d8f 100%);
+}
+
+.trend-chart-weight {
+  min-height: 180px;
+}
+
+.trend-bar-weight {
+  background: linear-gradient(180deg, #2b5960 0%, #d9a15b 100%);
 }
 
 .detail-list {
