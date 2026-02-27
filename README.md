@@ -24,7 +24,6 @@ This repository does not currently contain:
 - A checked-in frontend app
 - Oura sync jobs
 - Apple Health ingest jobs
-- Data migration scripts
 - Most non-food API routes from the PRD
 
 ## Structure
@@ -41,6 +40,7 @@ driver/
 │   ├── requirements-dev.txt
 │   └── Dockerfile
 ├── tests/            # Backend API tests
+├── scripts/          # One-off migration and future ingest scripts
 ├── .github/          # CI and code scanning workflows
 ├── docker-compose.yml
 ├── .env.example

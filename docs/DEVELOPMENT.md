@@ -26,6 +26,13 @@ Run the dependency audit separately:
 make audit
 ```
 
+Run the legacy food migration:
+
+```bash
+python3 scripts/migrate_health_db.py /path/to/health.db /path/to/driver.db --dry-run
+python3 scripts/migrate_health_db.py /path/to/health.db /path/to/driver.db
+```
+
 ## Notes
 
 - The current repository is backend-only in practice; `docker-compose.yml` starts only the API service
