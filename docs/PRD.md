@@ -605,7 +605,7 @@ Based on max HR formula: 220 - age (56) = **164 bpm**
 - [x] Photo estimate API (`/api/v1/food/photo-estimate`) with confidence + method metadata
 - [x] Photo log override flow (calories/protein edit-before-save)
 - [ ] Vision-provider quality tuning and fallback thresholds
-- [ ] Daily + weekly coaching digest persistence and dashboard surface
+- [x] Daily + weekly coaching digest persistence and dashboard surface
 - [ ] Data anomaly detection and missing-data flagging
 
 ---
@@ -635,8 +635,8 @@ Based on max HR formula: 220 - age (56) = **164 bpm**
 
 ---
 
-*PRD status: Active v0.13 — Phase 6 in progress*
-*Next step: phase-6 quality tuning (vision confidence calibration + coaching digest jobs)*
+*PRD status: Active v0.14 — Phase 6 in progress*
+*Next step: phase-6 quality tuning (vision confidence calibration + anomaly/missing-data flags)*
 
 ---
 ## Changelog
@@ -655,3 +655,4 @@ Based on max HR formula: 220 - age (56) = **164 bpm**
 | 0.11 | 2026-02-27 | Added photo-food log flow endpoint (`/api/v1/food/from-photo`) for estimated macro capture with photo URL provenance and review notes |
 | 0.12 | 2026-02-27 | Added explicit health-agent log/query endpoints for food and workouts plus sleep query (`/api/v1/agent/log-food`, `/api/v1/agent/log-workout`, `/api/v1/agent/sleep`) |
 | 0.13 | 2026-02-27 | Started Phase 6 slice 1: photo estimate endpoint with method/confidence metadata, optional vision integration path, and dashboard edit-before-save overrides for photo logging |
+| 0.14 | 2026-02-27 | Completed Phase 6 slice 2: persisted daily/weekly coaching digests (`coaching_digests`), generation/read APIs (`/api/v1/coaching/digests/*`), dashboard digest surface, and test coverage |

@@ -207,6 +207,22 @@ CREATE TABLE IF NOT EXISTS daily_suggestions (
 );
 
 -- ─────────────────────────────────────────
+-- COACHING DIGESTS
+-- ─────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS coaching_digests (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    digest_date     DATE NOT NULL,
+    digest_type     TEXT NOT NULL CHECK(digest_type IN ('daily','weekly')),
+    summary         TEXT NOT NULL,
+    highlights      TEXT NOT NULL DEFAULT '[]', -- JSON array of bullet strings
+    created_at      DATETIME NOT NULL DEFAULT (datetime('now')),
+    UNIQUE(digest_date, digest_type)
+);
+
+CREATE INDEX IF NOT EXISTS idx_coaching_digests_type_date
+ON coaching_digests(digest_type, digest_date);
+
+-- ─────────────────────────────────────────
 -- TARGETS
 -- ─────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS targets (

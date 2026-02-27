@@ -5,6 +5,7 @@ from contextlib import asynccontextmanager
 from .db import init_db
 from .routers import (
     agent,
+    coaching,
     dashboard,
     exercise,
     food,
@@ -59,6 +60,7 @@ app.include_router(dashboard.router, prefix="/api/v1/dashboard", tags=["dashboar
 app.include_router(agent.router, prefix="/api/v1/agent", tags=["agent"])
 app.include_router(ingest.router, prefix="/api/v1/ingest", tags=["ingest"])
 app.include_router(training.router, prefix="/api/v1/training", tags=["training"])
+app.include_router(coaching.router, prefix="/api/v1/coaching", tags=["coaching"])
 app.include_router(goals.router, prefix="/api/v1/goals", tags=["goals"])
 app.include_router(reports.router, prefix="/api/v1/reports", tags=["reports"])
 
