@@ -379,6 +379,28 @@ body {
   font-style: italic;
 }
 
+.photo-form {
+  display: grid;
+  gap: 10px;
+}
+
+.photo-form input,
+.photo-form select,
+.photo-form button {
+  font: inherit;
+  border-radius: 10px;
+  border: 1px solid rgba(24, 33, 38, 0.2);
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.8);
+}
+
+.photo-form button {
+  background: linear-gradient(90deg, #be7f34, #3e6d72);
+  color: #fff;
+  border: 0;
+  font-weight: 600;
+}
+
 @media (max-width: 900px) {
   .hero,
   .grid,
