@@ -23,6 +23,8 @@ const emptyWaistTrend = [];
 const emptyExerciseSets = {};
 const emptySleepRecord = null;
 const emptySleepTrend = [];
+const emptyLabs = [];
+const emptyLabTrend = [];
 
 function MetricCard({ label, value, target, unit }) {
   const displayValue = value ?? 0;
@@ -153,6 +155,22 @@ function buildSleepSeries(records) {
     }));
 }
 
+function buildLabSeries(entries) {
+  if (entries.length === 0) {
+    return [];
+  }
+
+  const values = entries.map((entry) => entry.value ?? 0);
+  const minValue = Math.min(...values);
+  const maxValue = Math.max(...values);
+  const spread = Math.max(1, maxValue - minValue);
+
+  return entries.map((entry) => ({
+    ...entry,
+    height: Math.max(14, Math.round((((entry.value ?? minValue) - minValue) / spread) * 100))
+  }));
+}
+
 function App() {
   const [snapshot, setSnapshot] = useState(emptySnapshot);
   const [week, setWeek] = useState(emptyWeek);
@@ -161,6 +179,9 @@ function App() {
   const [exerciseSets, setExerciseSets] = useState(emptyExerciseSets);
   const [sleepRecord, setSleepRecord] = useState(emptySleepRecord);
   const [sleepTrend, setSleepTrend] = useState(emptySleepTrend);
+  const [labs, setLabs] = useState(emptyLabs);
+  const [triglyceridesTrend, setTriglyceridesTrend] = useState(emptyLabTrend);
+  const [glucoseTrend, setGlucoseTrend] = useState(emptyLabTrend);
   const [status, setStatus] = useState("loading");
   const [error, setError] = useState("");
 
@@ -186,11 +207,23 @@ function App() {
           weekResponse.json()
         ]);
 
-        const [weightResponse, waistResponse, sleepResponse, sleepTrendResponse, setsPayload] = await Promise.all([
+        const [
+          weightResponse,
+          waistResponse,
+          sleepResponse,
+          sleepTrendResponse,
+          labsResponse,
+          triglyceridesResponse,
+          glucoseResponse,
+          setsPayload
+        ] = await Promise.all([
           fetch(`/api/v1/metrics?metric=weight_lbs&days=14&ending=${todayPayload.date}`),
           fetch(`/api/v1/metrics?metric=waist_in&days=14&ending=${todayPayload.date}`),
           fetch(`/api/v1/sleep?recorded_date=${todayPayload.date}`),
           fetch(`/api/v1/sleep?days=14&ending=${todayPayload.date}`),
+          fetch("/api/v1/labs"),
+          fetch("/api/v1/labs?marker=Triglycerides"),
+          fetch("/api/v1/labs?marker=Glucose"),
           Promise.all(
             (todayPayload.exercise ?? [])
               .filter(isStrengthSession)
@@ -216,10 +249,22 @@ function App() {
         if (!sleepTrendResponse.ok) {
           throw new Error(`Sleep trend request failed: ${sleepTrendResponse.status}`);
         }
+        if (!labsResponse.ok) {
+          throw new Error(`Labs request failed: ${labsResponse.status}`);
+        }
+        if (!triglyceridesResponse.ok) {
+          throw new Error(`Triglycerides trend request failed: ${triglyceridesResponse.status}`);
+        }
+        if (!glucoseResponse.ok) {
+          throw new Error(`Glucose trend request failed: ${glucoseResponse.status}`);
+        }
         const weightPayload = await weightResponse.json();
         const waistPayload = await waistResponse.json();
         const sleepPayload = await sleepResponse.json();
         const sleepTrendPayload = await sleepTrendResponse.json();
+        const labsPayload = await labsResponse.json();
+        const triglyceridesPayload = await triglyceridesResponse.json();
+        const glucosePayload = await glucoseResponse.json();
         const exerciseSetsPayload = Object.fromEntries(setsPayload);
         if (!isActive) {
           return;
@@ -231,6 +276,9 @@ function App() {
         setWaistTrend(waistPayload);
         setSleepRecord(sleepPayload);
         setSleepTrend(sleepTrendPayload);
+        setLabs(labsPayload);
+        setTriglyceridesTrend(triglyceridesPayload);
+        setGlucoseTrend(glucosePayload);
         setExerciseSets(exerciseSetsPayload);
         setStatus("ready");
       } catch (err) {
@@ -263,6 +311,10 @@ function App() {
   const weightChange = weightSeries.length > 1 ? weightSeries[weightSeries.length - 1].offset : null;
   const latestWaist = waistSeries.length > 0 ? waistSeries[waistSeries.length - 1].value : null;
   const waistChange = waistSeries.length > 1 ? waistSeries[waistSeries.length - 1].offset : null;
+  const latestDrawDate = labs.length > 0 ? labs[0].drawn_date : null;
+  const latestPanelRows = latestDrawDate ? labs.filter((row) => row.drawn_date === latestDrawDate) : [];
+  const triglyceridesSeries = buildLabSeries(triglyceridesTrend.slice().reverse());
+  const glucoseSeries = buildLabSeries(glucoseTrend.slice().reverse());
 
   return (
     <main className="page-shell">
@@ -516,6 +568,61 @@ function App() {
               </dd>
             </div>
           </dl>
+        </article>
+      </section>
+
+      <section className="content-grid lower-grid">
+        <article className="panel panel-wide-two">
+          <h2>Latest labs snapshot</h2>
+          {latestPanelRows.length === 0 ? (
+            <p className="panel-copy">No labs logged yet. Use `/api/v1/labs` to backfill panel history.</p>
+          ) : (
+            <>
+              <p className="panel-copy">{`Panel date ${latestDrawDate}`}</p>
+              <dl className="detail-list">
+                {latestPanelRows.map((row) => (
+                  <div key={`${row.drawn_date}-${row.panel}-${row.marker}`}>
+                    <dt>{row.marker}</dt>
+                    <dd>{`${row.value} ${row.unit}${row.flag ? ` (${row.flag})` : ""}`}</dd>
+                  </div>
+                ))}
+              </dl>
+            </>
+          )}
+        </article>
+
+        <article className="panel">
+          <h2>Lab marker trends</h2>
+          {triglyceridesSeries.length > 0 ? (
+            <>
+              <p className="panel-copy">Triglycerides</p>
+              <div className="trend-chart trend-chart-labs" aria-label="Triglycerides trend">
+                {triglyceridesSeries.map((entry) => (
+                  <div key={`${entry.drawn_date}-${entry.created_at}`} className="trend-column">
+                    <span className="trend-value">{entry.value}</span>
+                    <span className="trend-bar trend-bar-labs" style={{ height: `${entry.height}%` }} />
+                    <span className="trend-label">{entry.drawn_date.slice(5)}</span>
+                  </div>
+                ))}
+              </div>
+            </>
+          ) : (
+            <p className="panel-copy">No triglycerides history yet.</p>
+          )}
+          {glucoseSeries.length > 0 ? (
+            <>
+              <p className="panel-copy">Glucose</p>
+              <div className="trend-chart trend-chart-labs" aria-label="Glucose trend">
+                {glucoseSeries.map((entry) => (
+                  <div key={`${entry.drawn_date}-${entry.created_at}`} className="trend-column">
+                    <span className="trend-value">{entry.value}</span>
+                    <span className="trend-bar trend-bar-labs" style={{ height: `${entry.height}%` }} />
+                    <span className="trend-label">{entry.drawn_date.slice(5)}</span>
+                  </div>
+                ))}
+              </div>
+            </>
+          ) : null}
         </article>
       </section>
     </main>
