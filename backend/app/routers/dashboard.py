@@ -101,7 +101,8 @@ def _build_narrative_insights(conn, today: date) -> list[str]:
     ).fetchall()
 
     zone12_pcts = [
-        (row["zone12_minutes"] / row["total_minutes"]) * 100.0 for row in cardio_zone_rows
+        (row["zone12_minutes"] / row["total_minutes"]) * 100.0
+        for row in cardio_zone_rows
     ]
     if zone12_pcts:
         recent = zone12_pcts[-3:]
