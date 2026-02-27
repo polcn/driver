@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 
 from .db import init_db
-from .routers import dashboard, exercise, food, ingest, metrics, sleep
+from .routers import dashboard, exercise, food, ingest, metrics, sleep, training
 
 
 @asynccontextmanager
@@ -32,6 +32,7 @@ app.include_router(metrics.router, prefix="/api/v1/metrics", tags=["metrics"])
 app.include_router(sleep.router, prefix="/api/v1/sleep", tags=["sleep"])
 app.include_router(dashboard.router, prefix="/api/v1/dashboard", tags=["dashboard"])
 app.include_router(ingest.router, prefix="/api/v1/ingest", tags=["ingest"])
+app.include_router(training.router, prefix="/api/v1/training", tags=["training"])
 
 
 @app.get("/health")
