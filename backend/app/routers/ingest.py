@@ -472,17 +472,17 @@ def ingest_oura(payload: dict, conn: sqlite3.Connection = Depends(get_db_depende
         if existing:
             conn.execute(
                 """UPDATE sleep_records
-                   SET bedtime=?,
-                       wake_time=?,
-                       duration_min=?,
-                       deep_min=?,
-                       rem_min=?,
-                       core_min=?,
-                       awake_min=?,
-                       hrv=?,
-                       resting_hr=?,
-                       readiness_score=?,
-                       sleep_score=?,
+                   SET bedtime=COALESCE(?, bedtime),
+                       wake_time=COALESCE(?, wake_time),
+                       duration_min=COALESCE(?, duration_min),
+                       deep_min=COALESCE(?, deep_min),
+                       rem_min=COALESCE(?, rem_min),
+                       core_min=COALESCE(?, core_min),
+                       awake_min=COALESCE(?, awake_min),
+                       hrv=COALESCE(?, hrv),
+                       resting_hr=COALESCE(?, resting_hr),
+                       readiness_score=COALESCE(?, readiness_score),
+                       sleep_score=COALESCE(?, sleep_score),
                        source='oura'
                    WHERE id=?""",
                 (

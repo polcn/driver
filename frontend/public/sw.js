@@ -26,13 +26,19 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
+  const url = new URL(event.request.url);
+
+  // Never cache API responses — health data must always be fresh.
+  if (url.pathname.startsWith("/api/") || url.pathname === "/health") {
+    return;
+  }
+
   event.respondWith(
     caches.match(event.request).then((cached) => {
       if (cached) {
         return cached;
       }
       return fetch(event.request).then((response) => {
-        const url = new URL(event.request.url);
         if (url.origin === self.location.origin && response.status === 200) {
           const copy = response.clone();
           caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
