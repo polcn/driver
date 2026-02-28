@@ -18,6 +18,7 @@ from .routers import (
     reports,
     sleep,
     supplements,
+    transcribe,
     training,
 )
 
@@ -63,6 +64,7 @@ app.include_router(training.router, prefix="/api/v1/training", tags=["training"]
 app.include_router(coaching.router, prefix="/api/v1/coaching", tags=["coaching"])
 app.include_router(goals.router, prefix="/api/v1/goals", tags=["goals"])
 app.include_router(reports.router, prefix="/api/v1/reports", tags=["reports"])
+app.include_router(transcribe.router, prefix="/api/v1", tags=["transcribe"])
 
 
 @app.get("/health")
