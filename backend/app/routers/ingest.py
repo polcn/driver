@@ -4,14 +4,10 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
-from google.oauth2 import service_account
-from googleapiclient.discovery import build
-from googleapiclient.http import MediaIoBaseDownload
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 
 from ..db import get_db_dependency
-from ..parsers.cpap_edf import parse_cpap_edf
 
 router = APIRouter()
 
@@ -591,6 +587,9 @@ def ingest_oura(payload: dict, conn: sqlite3.Connection = Depends(get_db_depende
 def _drive_service():
     from os import getenv
 
+    from google.oauth2 import service_account
+    from googleapiclient.discovery import build
+
     configured = getenv("GOOGLE_SERVICE_ACCOUNT_PATH")
     credentials_path = Path(configured).expanduser() if configured else None
 
@@ -606,6 +605,8 @@ def _drive_service():
 
 
 def _download_str_edf_to_temp(service) -> Path:
+    from googleapiclient.http import MediaIoBaseDownload
+
     query = "name='STR.edf' and trashed=false"
     files = (
         service.files()
@@ -632,6 +633,8 @@ def _download_str_edf_to_temp(service) -> Path:
 
 @router.post("/cpap")
 def ingest_cpap(conn: sqlite3.Connection = Depends(get_db_dependency)):
+    from ..parsers.cpap_edf import parse_cpap_edf
+
     temp_path: Path | None = None
     try:
         service = _drive_service()
