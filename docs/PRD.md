@@ -648,7 +648,7 @@ fitbit-raw-archive/
 | Yoga | yoga |
 | Sport / Swim / Other | cardio |
 
-**Deduplication:** Unique key is `(recorded_date, metric)` for `body_metrics` and `(recorded_date)` for `sleep_records`. INSERT OR IGNORE — Oura and Apple Health records already present for a given date are never overwritten. Fitbit fills historical gaps only.
+**Deduplication:** Importer-level dedup key is `(recorded_date, metric)` for `body_metrics` and `(recorded_date)` for `sleep_records`. Use `INSERT OR IGNORE`/pre-check logic so Oura and Apple Health records already present for a given date are never overwritten. Fitbit fills historical gaps only.
 
 **Error handling:**
 - Archive not found on Drive → `{ "status": "error", "detail": "fitbit-raw-archive.tar.gz not found in mcgrupp/fitbit/" }`
@@ -770,4 +770,4 @@ fitbit-raw-archive/
 | 0.13 | 2026-02-27 | Started Phase 6 slice 1: photo estimate endpoint with method/confidence metadata, optional vision integration path, and dashboard edit-before-save overrides for photo logging |
 | 0.14 | 2026-02-27 | Completed Phase 6 slice 2: persisted daily/weekly coaching digests (`coaching_digests`), generation/read APIs (`/api/v1/coaching/digests/*`), dashboard digest surface, and test coverage |
 | 0.15 | 2026-03-01 | Added CPAP ingest spec (11.3 — manual button trigger, Google Drive EDF, upserts CPAP columns into sleep_records) and Fitbit historical archive import spec (11.4 — one-time backfill, 2016–2025 data, 500MB archive, glucose + AFib ECG review flag) |
-| 0.16 | 2026-03-01 | Review fixes for 11.3 + 11.4: added GCP service account auth for Google Drive access; added `cpap_used=1` to CPAP extracted fields; clarified source field unchanged on merged Oura rows; added error response shapes for both endpoints; specified Fitbit archive directory structure; added sleep stage mapping (deep→deep_min, rem→rem_min); added exercise type normalization table; specified dedup key as `(recorded_date, metric)` for body_metrics — INSERT OR IGNORE, active sources win; noted glucose may include Google Fit data pre-2015; made Fitbit endpoint synchronous; added `afib_ecg` count to Fitbit response; added CPAP + Fitbit endpoints to API table (7.8) |
+| 0.16 | 2026-03-01 | Review fixes for 11.3 + 11.4: added GCP service account auth for Google Drive access; added `cpap_used=1` to CPAP extracted fields; clarified source field unchanged on merged Oura rows; added error response shapes for both endpoints; specified Fitbit archive directory structure; added sleep stage mapping (deep→deep_min, rem→rem_min); added exercise type normalization table; clarified importer-level dedup key as `(recorded_date, metric)` for body_metrics so active sources win; noted glucose may include Google Fit data pre-2015; made Fitbit endpoint synchronous; added `afib_ecg` count to Fitbit response; added CPAP + Fitbit endpoints to API table (7.8) |
