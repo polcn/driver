@@ -45,7 +45,7 @@ CREATE TABLE IF NOT EXISTS exercise_sessions (
     calories_burned REAL,
     avg_heart_rate  INTEGER,
     max_heart_rate  INTEGER,
-    source          TEXT NOT NULL DEFAULT 'manual' CHECK(source IN ('manual','oura','apple_health','agent')),
+    source          TEXT NOT NULL DEFAULT 'manual' CHECK(source IN ('manual','oura','apple_health','agent','fitbit')),
     notes           TEXT,
     created_at      DATETIME NOT NULL DEFAULT (datetime('now')),
     deleted_at      DATETIME
@@ -96,7 +96,7 @@ CREATE TABLE IF NOT EXISTS sleep_records (
     cpap_hours      REAL,     -- compliance hours
     cpap_leak_95    REAL,     -- 95th percentile leak rate
     cpap_pressure_avg REAL,   -- average pressure
-    source          TEXT NOT NULL DEFAULT 'oura' CHECK(source IN ('oura','apple_health','manual','cpap')),
+    source          TEXT NOT NULL DEFAULT 'oura' CHECK(source IN ('oura','apple_health','manual','cpap','fitbit')),
     created_at      DATETIME NOT NULL DEFAULT (datetime('now'))
 );
 
@@ -108,7 +108,7 @@ CREATE TABLE IF NOT EXISTS body_metrics (
     recorded_date   DATE NOT NULL,
     metric          TEXT NOT NULL,  -- weight_lbs, body_fat_pct, bmi, waist_in, etc.
     value           REAL NOT NULL,
-    source          TEXT NOT NULL DEFAULT 'manual' CHECK(source IN ('manual','apple_health','oura')),
+    source          TEXT NOT NULL DEFAULT 'manual' CHECK(source IN ('manual','apple_health','oura','fitbit')),
     notes           TEXT,
     created_at      DATETIME NOT NULL DEFAULT (datetime('now'))
 );
