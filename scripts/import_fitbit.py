@@ -651,15 +651,9 @@ def scan_afib_ecg(data_dir):
     print(f"  UNREADABLE: {unreadable_count}")
     print(f"  AFib detected: {afib_count}")
     if afib_count > 0:
-        print("  ⚠️  AFib readings found — flag for Dr. Smithson review:")
-        for r in readings:
-            if r["classification"] == "AFIB":
-                print(f"    {r['date']} — HR {r['heart_rate']} bpm")
+        print("  AFib readings found — flag for Dr. Smithson review.")
     else:
         print("  No AFib detected in any readings.")
-
-    for r in readings:
-        print(f"    {r['date']} — {r['classification']} (HR {r['heart_rate']})")
 
     return {"total": len(readings), "afib": afib_count, "nsr": nsr_count, "unreadable": unreadable_count}
 
