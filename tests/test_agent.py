@@ -34,6 +34,37 @@ def test_agent_today_summary_returns_aggregates_and_text(client):
     assert "calories 620.0" in payload["summary_text"]
 
 
+def test_agent_today_summary_prefers_apple_activity_when_both_sources_exist(client):
+    oura_steps = client.post(
+        "/api/v1/metrics",
+        json={
+            "recorded_date": "2026-02-27",
+            "metric": "steps",
+            "value": 9400,
+            "source": "oura",
+        },
+    )
+    assert oura_steps.status_code == 201
+
+    apple_steps = client.post(
+        "/api/v1/metrics",
+        json={
+            "recorded_date": "2026-02-27",
+            "metric": "steps",
+            "value": 10100,
+            "source": "apple_health",
+        },
+    )
+    assert apple_steps.status_code == 201
+
+    response = client.get(
+        "/api/v1/agent/today-summary",
+        params={"target_date": "2026-02-27"},
+    )
+    assert response.status_code == 200
+    assert response.json()["activity"]["steps"] == 10100.0
+
+
 def test_agent_week_summary_and_query_endpoint(client):
     for recorded_date, calories in [
         ("2026-02-25", 500),

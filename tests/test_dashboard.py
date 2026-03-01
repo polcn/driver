@@ -116,6 +116,59 @@ def test_dashboard_today_includes_steps_and_active_calories_from_metrics(client)
     assert response.json()["activity"] == {"active_calories": 612.0, "steps": 9842.0}
 
 
+def test_dashboard_today_prefers_apple_activity_when_both_sources_exist(client):
+    oura_steps = client.post(
+        "/api/v1/metrics",
+        json={
+            "recorded_date": "2026-02-27",
+            "metric": "steps",
+            "value": 8000,
+            "source": "oura",
+        },
+    )
+    assert oura_steps.status_code == 201
+
+    apple_steps = client.post(
+        "/api/v1/metrics",
+        json={
+            "recorded_date": "2026-02-27",
+            "metric": "steps",
+            "value": 9100,
+            "source": "apple_health",
+        },
+    )
+    assert apple_steps.status_code == 201
+
+    oura_calories = client.post(
+        "/api/v1/metrics",
+        json={
+            "recorded_date": "2026-02-27",
+            "metric": "active_calories",
+            "value": 490,
+            "source": "oura",
+        },
+    )
+    assert oura_calories.status_code == 201
+
+    apple_calories = client.post(
+        "/api/v1/metrics",
+        json={
+            "recorded_date": "2026-02-27",
+            "metric": "active_calories",
+            "value": 560,
+            "source": "apple_health",
+        },
+    )
+    assert apple_calories.status_code == 201
+
+    response = client.get(
+        "/api/v1/dashboard/today",
+        params={"target_date": "2026-02-27"},
+    )
+    assert response.status_code == 200
+    assert response.json()["activity"] == {"active_calories": 560.0, "steps": 9100.0}
+
+
 def test_dashboard_today_returns_narrative_insights_for_sleep_and_alcohol(client):
     for recorded_date, sleep_score, resting_hr in [
         ("2026-02-21", 72, 56),

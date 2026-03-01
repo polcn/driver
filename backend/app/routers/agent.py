@@ -71,7 +71,13 @@ def _get_sleep_summary(conn: sqlite3.Connection, target: date) -> Optional[dict]
         """SELECT *
            FROM sleep_records
            WHERE recorded_date=?
-           ORDER BY created_at DESC
+           ORDER BY
+             CASE source
+               WHEN 'oura' THEN 0
+               WHEN 'apple_health' THEN 1
+               ELSE 2
+             END,
+             created_at DESC
            LIMIT 1""",
         (str(target),),
     ).fetchone()
@@ -190,16 +196,28 @@ def get_today_summary(
     suggestion = _get_daily_suggestion(conn, target, autocreate=False)
     activity_rows = conn.execute(
         """SELECT metric, value
-           FROM body_metrics
-           WHERE recorded_date=?
-             AND metric IN ('steps', 'active_calories')
-           ORDER BY id DESC""",
+           FROM (
+             SELECT
+               metric,
+               value,
+               ROW_NUMBER() OVER (
+                 PARTITION BY metric
+                 ORDER BY
+                   CASE source
+                     WHEN 'apple_health' THEN 0
+                     WHEN 'oura' THEN 1
+                     ELSE 2
+                   END,
+                   id DESC
+               ) AS row_num
+             FROM body_metrics
+             WHERE recorded_date=?
+               AND metric IN ('steps', 'active_calories')
+           ) prioritized
+           WHERE row_num = 1""",
         (str(target),),
     ).fetchall()
-    activity = {}
-    for row in activity_rows:
-        if row["metric"] not in activity:
-            activity[row["metric"]] = row["value"]
+    activity = {row["metric"]: row["value"] for row in activity_rows}
 
     text = (
         f"{target}: calories {food.get('calories') or 0}, "
