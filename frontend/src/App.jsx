@@ -211,6 +211,8 @@ function App() {
   const [goalPlanStatus, setGoalPlanStatus] = useState("");
   const [selectedPlanText, setSelectedPlanText] = useState("");
   const [digestStatus, setDigestStatus] = useState("");
+  const [cpapStatus, setCpapStatus] = useState("");
+  const [cpapSummary, setCpapSummary] = useState(null);
   const [status, setStatus] = useState("loading");
   const [error, setError] = useState("");
 
@@ -451,6 +453,22 @@ function App() {
     }
   }
 
+  async function handleImportCpap() {
+    setCpapStatus("importing");
+    try {
+      const response = await fetch("/api/v1/ingest/cpap", { method: "POST" });
+      const payload = await response.json();
+      if (!response.ok || payload.status === "error") {
+        throw new Error(payload.detail || `CPAP import failed: ${response.status}`);
+      }
+      setCpapSummary(payload);
+      setCpapStatus("import complete");
+      await loadSnapshot();
+    } catch (err) {
+      setCpapStatus(err instanceof Error ? err.message : "cpap import failed");
+    }
+  }
+
   async function handleCreateGoal(event) {
     event.preventDefault();
     const startDate = snapshot.date ?? new Date().toISOString().slice(0, 10);
@@ -510,6 +528,12 @@ function App() {
   const waistSeries = buildWeightSeries(waistTrend);
   const sleepSeries = buildSleepSeries(sleepTrend);
   const sleep = sleepRecord ?? snapshot.sleep;
+  const cpapNightsOnRecord = sleepTrend.filter((record) => record.cpap_used === 1).length;
+  const cpapLastDate = sleepTrend
+    .filter((record) => record.cpap_used === 1)
+    .map((record) => record.recorded_date)
+    .sort()
+    .at(-1);
   const exerciseSummary = formatExerciseSummary(snapshot.exercise);
   const latestWeight = weightSeries.length > 0 ? weightSeries[weightSeries.length - 1].value : null;
   const weightChange = weightSeries.length > 1 ? weightSeries[weightSeries.length - 1].offset : null;
@@ -881,6 +905,39 @@ function App() {
               ? `Sleep score ${sleep.sleep_score}`
               : "Sleep data will appear here once ingestion is wired."}
           </p>
+          <form className="inline-form" onSubmit={(event) => event.preventDefault()}>
+            <button type="button" onClick={handleImportCpap}>Import CPAP Data</button>
+          </form>
+          <p className="panel-copy">
+            {`CPAP nights on record: ${cpapNightsOnRecord}`}
+            {cpapLastDate ? ` · last date ${cpapLastDate}` : ""}
+          </p>
+          {sleep?.cpap_used === 1 ? (
+            <dl className="detail-list">
+              <div>
+                <dt>AHI</dt>
+                <dd>{sleep.cpap_ahi ?? "n/a"}</dd>
+              </div>
+              <div>
+                <dt>Hours</dt>
+                <dd>{sleep.cpap_hours ?? "n/a"}</dd>
+              </div>
+              <div>
+                <dt>Leak 95</dt>
+                <dd>{sleep.cpap_leak_95 ?? "n/a"}</dd>
+              </div>
+              <div>
+                <dt>Pressure Avg</dt>
+                <dd>{sleep.cpap_pressure_avg ?? "n/a"}</dd>
+              </div>
+            </dl>
+          ) : null}
+          {cpapStatus ? <p className="panel-copy">CPAP status: {cpapStatus}</p> : null}
+          {cpapSummary ? (
+            <p className="panel-copy">
+              {`Imported ${cpapSummary.nights_imported} nights · ${cpapSummary.date_range} · avg AHI ${cpapSummary.avg_ahi ?? "n/a"}`}
+            </p>
+          ) : null}
           {sleepSeries.length > 0 ? (
             <div className="trend-chart trend-chart-sleep" aria-label="Sleep duration trend">
               {sleepSeries.map((record) => (
