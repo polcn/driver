@@ -307,20 +307,20 @@ def import_resting_hr(conn, data_dir, dry_run=False):
                 skipped += 1
                 continue
 
-                if not dry_run:
-                    conn.execute(
-                        """INSERT INTO body_metrics (recorded_date, metric, value, source)
-                           VALUES (?, 'resting_hr', ?, 'fitbit')""",
-                        (date, round(hr_value, 1)),
-                    )
-                    conn.execute(
-                        """UPDATE sleep_records
-                           SET resting_hr=COALESCE(resting_hr, ?)
-                           WHERE recorded_date=?
-                             AND source='fitbit'""",
-                        (round(hr_value, 1), date),
-                    )
-                imported += 1
+            if not dry_run:
+                conn.execute(
+                    """INSERT INTO body_metrics (recorded_date, metric, value, source)
+                       VALUES (?, 'resting_hr', ?, 'fitbit')""",
+                    (date, round(hr_value, 1)),
+                )
+                conn.execute(
+                    """UPDATE sleep_records
+                       SET resting_hr=COALESCE(resting_hr, ?)
+                       WHERE recorded_date=?
+                         AND source='fitbit'""",
+                    (round(hr_value, 1), date),
+                )
+            imported += 1
 
     print(f"  Imported: {imported}, Skipped (existing): {skipped}")
     return imported
