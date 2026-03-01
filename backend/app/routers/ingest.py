@@ -1,11 +1,17 @@
 import sqlite3
+import tempfile
 from datetime import datetime
+from pathlib import Path
 from typing import Optional
 
+from google.oauth2 import service_account
+from googleapiclient.discovery import build
+from googleapiclient.http import MediaIoBaseDownload
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 
 from ..db import get_db_dependency
+from ..parsers.cpap_edf import parse_cpap_edf
 
 router = APIRouter()
 
@@ -579,4 +585,114 @@ def ingest_oura(payload: dict, conn: sqlite3.Connection = Depends(get_db_depende
             "activity": processed_activity,
             "skipped": skipped,
         },
+    }
+
+
+def _drive_service():
+    from os import getenv
+
+    configured = getenv("GOOGLE_SERVICE_ACCOUNT_PATH")
+    credentials_path = Path(configured).expanduser() if configured else None
+
+    if not credentials_path or not credentials_path.is_file():
+        raise FileNotFoundError(
+            "GOOGLE_SERVICE_ACCOUNT_PATH is not set or points to a missing file"
+        )
+
+    credentials = service_account.Credentials.from_service_account_file(
+        str(credentials_path), scopes=["https://www.googleapis.com/auth/drive.readonly"]
+    )
+    return build("drive", "v3", credentials=credentials, cache_discovery=False)
+
+
+def _download_str_edf_to_temp(service) -> Path:
+    query = "name='STR.edf' and trashed=false"
+    files = (
+        service.files()
+        .list(q=query, fields="files(id, name)", pageSize=10)
+        .execute()
+        .get("files", [])
+    )
+    if not files:
+        raise FileNotFoundError("STR.edf not found in mcgrupp/resmed/")
+
+    file_id = files[0]["id"]
+    request = service.files().get_media(fileId=file_id)
+    tmp = tempfile.NamedTemporaryFile(prefix="driver-cpap-", suffix=".edf", delete=False)
+    tmp_path = Path(tmp.name)
+    try:
+        downloader = MediaIoBaseDownload(tmp, request)
+        done = False
+        while not done:
+            _, done = downloader.next_chunk()
+    finally:
+        tmp.close()
+    return tmp_path
+
+
+@router.post("/cpap")
+def ingest_cpap(conn: sqlite3.Connection = Depends(get_db_dependency)):
+    temp_path: Path | None = None
+    try:
+        service = _drive_service()
+        temp_path = _download_str_edf_to_temp(service)
+        nights = parse_cpap_edf(temp_path)
+    except FileNotFoundError as exc:
+        return {"status": "error", "detail": str(exc)}
+    except Exception as exc:
+        return {"status": "error", "detail": f"Failed to parse EDF: {exc}"}
+    finally:
+        if temp_path and temp_path.exists():
+            temp_path.unlink(missing_ok=True)
+
+    for night in nights:
+        conn.execute(
+            """INSERT INTO sleep_records
+               (
+                 recorded_date,
+                 cpap_used,
+                 cpap_ahi,
+                 cpap_hours,
+                 cpap_leak_95,
+                 cpap_pressure_avg,
+                 source
+               )
+               VALUES (?, ?, ?, ?, ?, ?, 'cpap')
+               ON CONFLICT(recorded_date) DO UPDATE SET
+                 cpap_used=excluded.cpap_used,
+                 cpap_ahi=excluded.cpap_ahi,
+                 cpap_hours=excluded.cpap_hours,
+                 cpap_leak_95=excluded.cpap_leak_95,
+                 cpap_pressure_avg=excluded.cpap_pressure_avg""",
+            (
+                night["recorded_date"],
+                night["cpap_used"],
+                night["cpap_ahi"],
+                night["cpap_hours"],
+                night["cpap_leak_95"],
+                night["cpap_pressure_avg"],
+            ),
+        )
+
+    conn.commit()
+
+    if not nights:
+        return {
+            "status": "ok",
+            "nights_imported": 0,
+            "date_range": "",
+            "avg_ahi": None,
+            "skipped": 0,
+        }
+
+    dates = sorted(night["recorded_date"] for night in nights)
+    ahi_values = [night["cpap_ahi"] for night in nights if night["cpap_ahi"] is not None]
+    avg_ahi = round(sum(ahi_values) / len(ahi_values), 2) if ahi_values else None
+
+    return {
+        "status": "ok",
+        "nights_imported": len(nights),
+        "date_range": f"{dates[0]} → {dates[-1]}",
+        "avg_ahi": avg_ahi,
+        "skipped": 0,
     }
