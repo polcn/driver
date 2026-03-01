@@ -12,7 +12,7 @@ from typing import Any
 import httpx
 
 OURA_API_BASE = os.getenv("OURA_API_BASE", "https://api.ouraring.com")
-DRIVER_API_BASE = os.getenv("DRIVER_API_BASE", "http://localhost:8100")
+DRIVER_API_BASE = os.getenv("DRIVER_API_BASE", "http://localhost:8000")
 
 
 @dataclass

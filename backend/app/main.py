@@ -1,5 +1,9 @@
+import os
+from pathlib import Path
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
 
 from .db import init_db
@@ -68,3 +72,8 @@ app.include_router(reports.router, prefix="/api/v1/reports", tags=["reports"])
 @app.get("/health")
 def health_check():
     return {"status": "ok", "service": "driver"}
+
+
+frontend_dist = Path(__file__).parent.parent.parent / "frontend" / "dist"
+if frontend_dist.is_dir() and os.getenv("TESTING") != "1":
+    app.mount("/", StaticFiles(directory=str(frontend_dist), html=True), name="frontend")

@@ -21,7 +21,7 @@ Run the current quality checks:
 make check
 ```
 
-Build only the frontend scaffold:
+Build only the frontend:
 
 ```bash
 make frontend-build
@@ -48,7 +48,7 @@ python3 scripts/migrate_health_db.py /path/to/health.db /path/to/driver.db
 
 ## Notes
 
-- `docker-compose.yml` starts both the API service and the minimal frontend scaffold
-- The SQLite database defaults to `/data/driver.db` in Docker and can be overridden with `DATABASE_PATH`
+- The backend serves both the API and built frontend static files on port 8000
+- The SQLite database path is configured via `DATABASE_PATH` environment variable
 - Tests use an isolated temporary SQLite database per test run
-- The backend currently exposes food, exercise session/set, sleep, dashboard, and body metrics routes
+- Docker files (`docker-compose.yml`, `backend/Dockerfile`, `frontend/Dockerfile`) remain in the repo for CI reference

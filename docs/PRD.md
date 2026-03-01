@@ -113,22 +113,23 @@ One user: Craig. The agent (McGrupp) is a non-human client of the API.
 
 ```
 ┌─────────────────────────────────────────────┐
-│              Mac Mini (Docker)               │
-│                                              │
-│  ┌─────────────┐    ┌──────────────────┐    │
-│  │  React PWA  │◄──►│  FastAPI Backend │    │
-│  │  (Vite)     │    │  (Python 3.12)   │    │
-│  └─────────────┘    └────────┬─────────┘    │
-│                              │               │
-│                     ┌────────▼─────────┐    │
-│                     │  SQLite (WAL)    │    │
-│                     │  driver.db        │    │
-│                     └──────────────────┘    │
+│              Mac Mini (native)               │
 │                                              │
 │  ┌──────────────────────────────────────┐   │
-│  │  Sync Jobs (cron)                    │   │
-│  │  - Oura API → DB                     │   │
-│  │  - Health Auto Export CSV → DB       │   │
+│  │  FastAPI (uvicorn, Python 3.12)      │   │
+│  │  - /api/v1/* → API routes            │   │
+│  │  - /* → React PWA (static files)     │   │
+│  └────────────────┬─────────────────────┘   │
+│                   │                          │
+│          ┌────────▼─────────┐               │
+│          │  SQLite (WAL)    │               │
+│          │  data/driver.db  │               │
+│          └──────────────────┘               │
+│                                              │
+│  ┌──────────────────────────────────────┐   │
+│  │  Sync Jobs (GitHub Actions)          │   │
+│  │  - Oura API → Driver API             │   │
+│  │  - Health Auto Export → Driver API    │   │
 │  └──────────────────────────────────────┘   │
 └─────────────────────────────────────────────┘
           ▲                    ▲
@@ -137,7 +138,7 @@ One user: Craig. The agent (McGrupp) is a non-human client of the API.
 ```
 
 **Auth**: None. Tailscale network perimeter is sufficient for personal use.
-**Ports**: Backend 8100 (→ 8000 internal), Frontend 8101 (→ 80 internal), exposed via Tailscale.
+**Port**: 8000 (API + frontend), exposed via Tailscale on :8443.
 
 ---
 

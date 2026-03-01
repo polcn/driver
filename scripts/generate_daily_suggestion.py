@@ -9,7 +9,7 @@ from datetime import date
 
 import httpx
 
-DRIVER_API_BASE = os.getenv("DRIVER_API_BASE", "http://localhost:8100").rstrip("/")
+DRIVER_API_BASE = os.getenv("DRIVER_API_BASE", "http://localhost:8000").rstrip("/")
 DRIVER_API_TOKEN = os.getenv("DRIVER_API_TOKEN")
 
 
