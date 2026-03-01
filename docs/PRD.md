@@ -558,7 +558,7 @@ Based on max HR formula: 220 - age (56) = **164 bpm**
 ### 11.3 CPAP — ResMed AirSense 11 AutoSet
 
 **Source:** Google Drive `mcgrupp/resmed/STR.edf`
-**Google Drive access:** GCP service account with Drive API scope; EDF file shared to service account email. Credentials stored in `~/.driver/gcp-service-account.json` (not in repo).
+**Google Drive access:** Existing GCP service account (shared with OpenClaw). Path to credentials JSON configured via `GOOGLE_SERVICE_ACCOUNT_PATH` env var (not checked into repo).
 **Trigger:** Manual — dashboard button "Import CPAP Data" (user uploads new SD card data to Drive first)
 **Endpoint:** `POST /api/v1/ingest/cpap` — no request body; backend fetches EDF from Drive, parses, upserts
 
@@ -594,7 +594,7 @@ Based on max HR formula: 220 - age (56) = **164 bpm**
 ### 11.4 Fitbit — Historical Archive Import
 
 **Source:** Google Drive `mcgrupp/fitbit/fitbit-raw-archive.tar.gz` (~500MB Fitbit data export)
-**Google Drive access:** Same GCP service account as CPAP (11.3). Archive file shared to service account email.
+**Google Drive access:** Same GCP service account as CPAP (11.3), via `GOOGLE_SERVICE_ACCOUNT_PATH` env var.
 **Trigger:** Manual — dashboard button "Import Fitbit History" (one-time historical backfill; Fitbit no longer in active use)
 **Endpoint:** `POST /api/v1/ingest/fitbit` — synchronous; no request body; backend downloads archive from Drive, extracts to temp dir, parses, upserts. Returns when complete (may take 30–60 seconds for ~500MB archive).
 
