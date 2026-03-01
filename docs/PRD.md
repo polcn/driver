@@ -1,6 +1,6 @@
 # Driver — Personal Health Platform
 ## Product Requirements Document
-*Version 0.15 — 2026-03-01*
+*Version 0.16 — 2026-03-01*
 *Owner: Craig | Architect: McGrupp*
 
 ---
@@ -396,6 +396,8 @@ Base URL: `http://driver.local/api/v1` (or Tailscale URL)
 |--------|------|-------------|
 | POST | `/ingest/oura` | Oura data batch |
 | POST | `/ingest/apple-health` | Apple Health Export batch |
+| POST | `/ingest/cpap` | CPAP import — fetches EDF from Google Drive, parses, upserts |
+| POST | `/ingest/fitbit` | Fitbit historical archive — fetches from Google Drive, parses, upserts |
 
 ---
 
@@ -556,18 +558,24 @@ Based on max HR formula: 220 - age (56) = **164 bpm**
 ### 11.3 CPAP — ResMed AirSense 11 AutoSet
 
 **Source:** Google Drive `mcgrupp/resmed/STR.edf`
+**Google Drive access:** GCP service account with Drive API scope; EDF file shared to service account email. Credentials stored in `~/.driver/gcp-service-account.json` (not in repo).
 **Trigger:** Manual — dashboard button "Import CPAP Data" (user uploads new SD card data to Drive first)
 **Endpoint:** `POST /api/v1/ingest/cpap` — no request body; backend fetches EDF from Drive, parses, upserts
 
 **Parser:** Already built (EDF reader, 282 nights parsed Feb 2025–Feb 2026)
 **Data extracted per night:**
 - `recorded_date` — date of session
+- `cpap_used` — always 1 for imported CPAP nights
 - `cpap_ahi` — apnea-hypopnea index (×0.1 scale factor)
 - `cpap_hours` — usage hours
 - `cpap_leak_95` — 95th percentile leak rate (×0.02 L/s)
 - `cpap_pressure_avg` — average mask pressure (×0.02 cmH2O)
 
-**Storage:** Upserts CPAP columns into `sleep_records`; updates CPAP columns only on existing Oura rows — does NOT overwrite sleep quality fields. New CPAP-only rows use source=cpap.
+**Storage:** Upserts CPAP columns into `sleep_records`; updates CPAP columns only on existing Oura rows — does NOT overwrite sleep quality fields and does NOT change the `source` field on existing rows. New CPAP-only rows use source=cpap. Full re-import each time (not incremental); safe due to upsert semantics.
+
+**Error handling:**
+- EDF file not found on Drive → `{ "status": "error", "detail": "STR.edf not found in mcgrupp/resmed/" }`
+- EDF parse failure → `{ "status": "error", "detail": "Failed to parse EDF: ..." }`
 
 **Response:**
 ```json
@@ -586,13 +594,39 @@ Based on max HR formula: 220 - age (56) = **164 bpm**
 ### 11.4 Fitbit — Historical Archive Import
 
 **Source:** Google Drive `mcgrupp/fitbit/fitbit-raw-archive.tar.gz` (~500MB Fitbit data export)
+**Google Drive access:** Same GCP service account as CPAP (11.3). Archive file shared to service account email.
 **Trigger:** Manual — dashboard button "Import Fitbit History" (one-time historical backfill; Fitbit no longer in active use)
-**Endpoint:** `POST /api/v1/ingest/fitbit` — no request body; backend downloads archive from Drive, extracts, parses, upserts
+**Endpoint:** `POST /api/v1/ingest/fitbit` — synchronous; no request body; backend downloads archive from Drive, extracts to temp dir, parses, upserts. Returns when complete (may take 30–60 seconds for ~500MB archive).
+
+**Archive structure** (standard Fitbit data export layout):
+```
+fitbit-raw-archive/
+├── Sleep/
+│   └── sleep-YYYY-MM-DD.json        # per-month sleep stage data
+├── Physical Activity/
+│   ├── exercise-NNNN.json            # exercise log entries
+│   └── steps-YYYY-MM-DD.json        # daily step counts
+├── Heart Rate/
+│   └── heart_rate-YYYY-MM-DD.json   # daily resting HR
+├── Body/
+│   ├── weight-YYYY-MM-DD.json       # weight entries
+│   └── body_fat-YYYY-MM-DD.json     # body fat %
+├── HRV/
+│   └── Daily Heart Rate Variability Summary - YYYY-MM-DD.json
+├── SpO2/
+│   └── Minute SpO2 - YYYY-MM-DD.json
+├── VO2 Max/
+│   └── vo2_max-YYYY-MM-DD.json
+├── Glucose/
+│   └── glucose-YYYY-MM-DD.json      # may include Google Fit data
+└── ECG/
+    └── afib_ecg_readings.json        # AFib flag data
+```
 
 **Archive contents (data to import):**
 | Data | Years | Maps To |
 |------|-------|---------|
-| Sleep stages + scores | 2016–2025 | `sleep_records` (source=fitbit) |
+| Sleep stages + scores | 2016–2025 | `sleep_records` (source=fitbit) — `deep` → `deep_min`, `rem` → `rem_min`, `asleep`+`restless` → `duration_min` minus wake |
 | Resting heart rate | 2016–2025 | `body_metrics` metric=resting_hr |
 | HRV daily summary | 2024–2025 | `body_metrics` metric=hrv |
 | Steps | 2016–2025 | `body_metrics` metric=steps |
@@ -602,18 +636,32 @@ Based on max HR formula: 220 - age (56) = **164 bpm**
 | VO2 Max (estimated) | varies | `body_metrics` metric=vo2_max |
 | SpO2 daily | 2021–2025 | `body_metrics` metric=spo2 |
 | Exercises | 2016–2025 | `exercise_sessions` (source=fitbit) |
-| Glucose | 2007–2025 | `body_metrics` metric=glucose (flag for Dr. Smithson) |
+| Glucose | 2007–2025 | `body_metrics` metric=glucose, unit=mg/dL (flag for Dr. Smithson — may include Google Fit data pre-2015) |
 
-**Idempotency:** INSERT OR IGNORE on all records — safe to re-run. Never overwrites Oura or Apple Health records for same date.
+**Exercise type normalization:**
+| Fitbit Type | Driver `session_type` |
+|-------------|----------------------|
+| Walk | walk |
+| Run / Treadmill | cardio |
+| Bike / Spinning | cardio |
+| Weights | strength |
+| Yoga | yoga |
+| Sport / Swim / Other | cardio |
+
+**Deduplication:** Importer-level dedup key is `(recorded_date, metric)` for `body_metrics` and `(recorded_date)` for `sleep_records`. Use `INSERT OR IGNORE`/pre-check logic so Oura and Apple Health records already present for a given date are never overwritten. Fitbit fills historical gaps only.
+
+**Error handling:**
+- Archive not found on Drive → `{ "status": "error", "detail": "fitbit-raw-archive.tar.gz not found in mcgrupp/fitbit/" }`
+- Extraction/parse failure → `{ "status": "error", "detail": "Failed to extract archive: ..." }`
 
 **Response:**
 ```json
-{ "status": "ok", "processed": { "sleep": 1800, "metrics": 12400, "exercise": 620 }, "date_range": "2016-01-01 → 2025-10-01", "skipped": 0 }
+{ "status": "ok", "processed": { "sleep": 1800, "metrics": 12400, "exercise": 620, "afib_ecg": 8 }, "date_range": "2016-01-01 → 2025-10-01", "skipped": 0 }
 ```
 
 **Dashboard:** "Import Fitbit History" button → progress indicator (large archive, may take 30–60 seconds) → summary on completion.
 
-**AFib note:** Archive contains 8 AFib ECG readings (2021–2023). Flag these in response summary for Dr. Smithson review.
+**AFib note:** Archive contains 8 AFib ECG readings (2021–2023). Flag these in response `processed.afib_ecg` count and include date list for Dr. Smithson review.
 
 ---
 
@@ -700,7 +748,7 @@ Based on max HR formula: 220 - age (56) = **164 bpm**
 
 ---
 
-*PRD status: Active v0.14 — Phase 6 in progress*
+*PRD status: Active v0.16 — Phase 6 in progress*
 *Next step: phase-6 quality tuning (vision confidence calibration + anomaly/missing-data flags)*
 
 ---
@@ -722,3 +770,4 @@ Based on max HR formula: 220 - age (56) = **164 bpm**
 | 0.13 | 2026-02-27 | Started Phase 6 slice 1: photo estimate endpoint with method/confidence metadata, optional vision integration path, and dashboard edit-before-save overrides for photo logging |
 | 0.14 | 2026-02-27 | Completed Phase 6 slice 2: persisted daily/weekly coaching digests (`coaching_digests`), generation/read APIs (`/api/v1/coaching/digests/*`), dashboard digest surface, and test coverage |
 | 0.15 | 2026-03-01 | Added CPAP ingest spec (11.3 — manual button trigger, Google Drive EDF, upserts CPAP columns into sleep_records) and Fitbit historical archive import spec (11.4 — one-time backfill, 2016–2025 data, 500MB archive, glucose + AFib ECG review flag) |
+| 0.16 | 2026-03-01 | Review fixes for 11.3 + 11.4: added GCP service account auth for Google Drive access; added `cpap_used=1` to CPAP extracted fields; clarified source field unchanged on merged Oura rows; added error response shapes for both endpoints; specified Fitbit archive directory structure; added sleep stage mapping (deep→deep_min, rem→rem_min); added exercise type normalization table; clarified importer-level dedup key as `(recorded_date, metric)` for body_metrics so active sources win; noted glucose may include Google Fit data pre-2015; made Fitbit endpoint synchronous; added `afib_ecg` count to Fitbit response; added CPAP + Fitbit endpoints to API table (7.8) |
