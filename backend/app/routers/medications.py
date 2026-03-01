@@ -9,6 +9,19 @@ from ..db import get_db_dependency, row_to_dict
 
 router = APIRouter()
 
+UPDATABLE_COLUMNS = frozenset(
+    {
+        "name",
+        "dose",
+        "prescriber",
+        "indication",
+        "active",
+        "started_date",
+        "stopped_date",
+        "notes",
+    }
+)
+
 
 class MedicationCreate(BaseModel):
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
@@ -121,8 +134,12 @@ def update_medication(
     if not normalized:
         return row_to_dict(existing)
 
-    columns = ", ".join(f"{column}=?" for column in normalized.keys())
-    values = list(normalized.values()) + [medication_id]
+    safe_fields = {k: v for k, v in normalized.items() if k in UPDATABLE_COLUMNS}
+    if not safe_fields:
+        return row_to_dict(existing)
+
+    columns = ", ".join(f"{column}=?" for column in safe_fields)
+    values = list(safe_fields.values()) + [medication_id]
     conn.execute(
         f"UPDATE medications SET {columns} WHERE id=?",
         values,

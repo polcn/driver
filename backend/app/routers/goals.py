@@ -9,6 +9,20 @@ from ..db import get_db_dependency, row_to_dict
 
 router = APIRouter()
 
+UPDATABLE_COLUMNS = frozenset(
+    {
+        "name",
+        "metric",
+        "goal_type",
+        "target_value",
+        "direction",
+        "start_date",
+        "target_date",
+        "active",
+        "notes",
+    }
+)
+
 
 class GoalCreate(BaseModel):
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
@@ -177,16 +191,20 @@ def update_goal(
     if not normalized:
         return row_to_dict(existing)
 
+    safe_fields = {k: v for k, v in normalized.items() if k in UPDATABLE_COLUMNS}
+    if not safe_fields:
+        return row_to_dict(existing)
+
     merged = row_to_dict(existing)
-    merged.update(normalized)
+    merged.update(safe_fields)
     _validate_goal_payload(
         goal_type=merged["goal_type"],
         target_value=merged.get("target_value"),
         direction=merged.get("direction"),
     )
 
-    columns = ", ".join(f"{column}=?" for column in normalized.keys())
-    values = list(normalized.values()) + [goal_id]
+    columns = ", ".join(f"{column}=?" for column in safe_fields)
+    values = list(safe_fields.values()) + [goal_id]
     conn.execute(f"UPDATE goals SET {columns} WHERE id=?", values)
     conn.commit()
     row = conn.execute("SELECT * FROM goals WHERE id=?", (goal_id,)).fetchone()

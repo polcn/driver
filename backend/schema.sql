@@ -10,7 +10,7 @@ PRAGMA foreign_keys=ON;
 CREATE TABLE IF NOT EXISTS food_entries (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
     recorded_date   DATE NOT NULL,
-    meal_type       TEXT NOT NULL CHECK(meal_type IN ('breakfast','lunch','dinner','snack','drink')),
+    meal_type       TEXT NOT NULL CHECK(meal_type IN ('breakfast','lunch','dinner','snack','drink','meal')),
     name            TEXT NOT NULL,
     calories        REAL,
     protein_g       REAL,
