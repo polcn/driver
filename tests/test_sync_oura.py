@@ -121,7 +121,7 @@ def test_post_driver_ingest_sends_bearer_token():
     try:
         result = post_driver_ingest(
             client,
-            api_base="http://localhost:8100",
+            api_base="http://localhost:8000",
             token="driver-token",
             payload={"sleep": [], "readiness": [], "activity": []},
         )
@@ -163,7 +163,7 @@ def test_run_sync_posts_compound_payload():
             SyncConfig(
                 oura_api_base="https://api.ouraring.com",
                 oura_api_token="oura-token",
-                driver_api_base="http://localhost:8100",
+                driver_api_base="http://localhost:8000",
                 driver_api_token=None,
                 start_date="2026-03-06",
                 end_date="2026-03-06",

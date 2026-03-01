@@ -18,9 +18,14 @@ class IngestResponse(BaseModel):
 def parse_timestamp(value: Optional[str]) -> Optional[datetime]:
     if not value:
         return None
+    # Strip trailing timezone offset like " -0600" or "+0530" before parsing
+    cleaned = value.strip()
+    if len(cleaned) > 6 and cleaned[-5] in "+-" and cleaned[-4:].isdigit():
+        # e.g. "2026-02-23 11:53:41 -0600" → "2026-02-23 11:53:41"
+        cleaned = cleaned[:-6].rstrip()
     for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%d"):
         try:
-            return datetime.strptime(value, fmt)
+            return datetime.strptime(cleaned, fmt)
         except ValueError:
             continue
     return None
@@ -89,7 +94,7 @@ def compute_hr_zone_minutes(
 
     points: list[tuple[datetime, float]] = []
     for point in heart_rate_data:
-        qty = point.get("qty")
+        qty = point.get("qty") or point.get("Avg")
         if qty is None:
             continue
         timestamp = parse_timestamp(point.get("date"))
@@ -142,6 +147,8 @@ def compute_hr_zone_minutes(
 def ingest_apple_health(
     payload: dict, conn: sqlite3.Connection = Depends(get_db_dependency)
 ):
+    data = payload.get("data") or {}
+
     metric_name_map = {
         "resting_heart_rate": "resting_hr",
         "heart_rate_variability": "hrv",
@@ -151,7 +158,6 @@ def ingest_apple_health(
         "basal_energy_burned": "basal_calories",
     }
 
-    data = payload.get("data") or {}
     metrics = data.get("metrics") or []
     workouts = data.get("workouts") or []
 
@@ -241,15 +247,42 @@ def ingest_apple_health(
                 duration_min = int(
                     round(max(0.0, (end_ts - start_ts).total_seconds() / 60.0))
                 )
-        active_energy = workout.get("activeEnergy") or {}
+        # activeEnergyBurned is the scalar total; activeEnergy is time-series array
+        raw_aeb = workout.get("activeEnergyBurned")
+        active_energy_burned = (
+            raw_aeb.get("qty") if isinstance(raw_aeb, dict) else raw_aeb
+        )
+        if active_energy_burned is None:
+            ae_list = workout.get("activeEnergy")
+            if isinstance(ae_list, list):
+                active_energy_burned = sum(
+                    float(p["qty"]) for p in ae_list if p.get("qty") is not None
+                )
+            elif isinstance(ae_list, dict):
+                active_energy_burned = ae_list.get("qty")
         heart_rates = workout.get("heartRateData") or []
         heart_values = [
-            float(p["qty"]) for p in heart_rates if p.get("qty") is not None
+            float(p.get("qty") or p.get("Avg"))
+            for p in heart_rates
+            if p.get("qty") is not None or p.get("Avg") is not None
         ]
         avg_heart_rate = (
             int(round(sum(heart_values) / len(heart_values))) if heart_values else None
         )
         max_heart_rate = int(round(max(heart_values))) if heart_values else None
+        # Prefer top-level scalars from Health Auto Export when available
+        # These may be dicts like {"qty": N, "units": "bpm"} or plain numbers
+        for field, target in [("avgHeartRate", "avg"), ("maxHeartRate", "max")]:
+            raw = workout.get(field)
+            if raw is None:
+                continue
+            if isinstance(raw, dict):
+                raw = raw.get("qty")
+            if raw is not None:
+                if target == "avg":
+                    avg_heart_rate = int(round(float(raw)))
+                else:
+                    max_heart_rate = int(round(float(raw)))
 
         existing_session = conn.execute(
             """SELECT id
@@ -276,7 +309,7 @@ def ingest_apple_health(
                     classify_session_type(workout.get("name")),
                     workout.get("name"),
                     duration_min,
-                    active_energy.get("qty"),
+                    active_energy_burned,
                     avg_heart_rate,
                     max_heart_rate,
                     existing_session["id"],
@@ -303,7 +336,7 @@ def ingest_apple_health(
                     workout.get("name"),
                     external_id,
                     duration_min,
-                    active_energy.get("qty"),
+                    active_energy_burned,
                     avg_heart_rate,
                     max_heart_rate,
                 ),

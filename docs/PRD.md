@@ -1,6 +1,6 @@
 # Driver — Personal Health Platform
 ## Product Requirements Document
-*Version 0.5 — 2026-02-27*
+*Version 0.15 — 2026-03-01*
 *Owner: Craig | Architect: McGrupp*
 
 ---
@@ -113,22 +113,23 @@ One user: Craig. The agent (McGrupp) is a non-human client of the API.
 
 ```
 ┌─────────────────────────────────────────────┐
-│              Mac Mini (Docker)               │
-│                                              │
-│  ┌─────────────┐    ┌──────────────────┐    │
-│  │  React PWA  │◄──►│  FastAPI Backend │    │
-│  │  (Vite)     │    │  (Python 3.12)   │    │
-│  └─────────────┘    └────────┬─────────┘    │
-│                              │               │
-│                     ┌────────▼─────────┐    │
-│                     │  SQLite (WAL)    │    │
-│                     │  driver.db        │    │
-│                     └──────────────────┘    │
+│              Mac Mini (native)               │
 │                                              │
 │  ┌──────────────────────────────────────┐   │
-│  │  Sync Jobs (cron)                    │   │
-│  │  - Oura API → DB                     │   │
-│  │  - Health Auto Export CSV → DB       │   │
+│  │  FastAPI (uvicorn, Python 3.12)      │   │
+│  │  - /api/v1/* → API routes            │   │
+│  │  - /* → React PWA (static files)     │   │
+│  └────────────────┬─────────────────────┘   │
+│                   │                          │
+│          ┌────────▼─────────┐               │
+│          │  SQLite (WAL)    │               │
+│          │  data/driver.db  │               │
+│          └──────────────────┘               │
+│                                              │
+│  ┌──────────────────────────────────────┐   │
+│  │  Sync Jobs (GitHub Actions)          │   │
+│  │  - Oura API → Driver API             │   │
+│  │  - Health Auto Export → Driver API    │   │
 │  └──────────────────────────────────────┘   │
 └─────────────────────────────────────────────┘
           ▲                    ▲
@@ -137,7 +138,7 @@ One user: Craig. The agent (McGrupp) is a non-human client of the API.
 ```
 
 **Auth**: None. Tailscale network perimeter is sufficient for personal use.
-**Ports**: Backend 8100 (→ 8000 internal), Frontend 8101 (→ 80 internal), exposed via Tailscale.
+**Port**: 8000 (API + frontend), exposed via Tailscale on :8443.
 
 ---
 
@@ -552,7 +553,71 @@ Based on max HR formula: 220 - age (56) = **164 bpm**
 - Heart Rate, Resting HR, Weight, HRV → `body_metrics`
 - Sleep (if tracked by Apple Watch) → `sleep_records` (Oura is primary; Apple Watch is fallback/cross-reference)
 
-### 11.3 Migration
+### 11.3 CPAP — ResMed AirSense 11 AutoSet
+
+**Source:** Google Drive `mcgrupp/resmed/STR.edf`
+**Trigger:** Manual — dashboard button "Import CPAP Data" (user uploads new SD card data to Drive first)
+**Endpoint:** `POST /api/v1/ingest/cpap` — no request body; backend fetches EDF from Drive, parses, upserts
+
+**Parser:** Already built (EDF reader, 282 nights parsed Feb 2025–Feb 2026)
+**Data extracted per night:**
+- `recorded_date` — date of session
+- `cpap_ahi` — apnea-hypopnea index (×0.1 scale factor)
+- `cpap_hours` — usage hours
+- `cpap_leak_95` — 95th percentile leak rate (×0.02 L/s)
+- `cpap_pressure_avg` — average mask pressure (×0.02 cmH2O)
+
+**Storage:** Upserts CPAP columns into `sleep_records`; updates CPAP columns only on existing Oura rows — does NOT overwrite sleep quality fields. New CPAP-only rows use source=cpap.
+
+**Response:**
+```json
+{ "status": "ok", "nights_imported": 282, "date_range": "2025-02-01 → 2026-02-28", "avg_ahi": 1.73, "skipped": 0 }
+```
+
+**Dashboard:** "Import CPAP Data" button on Sleep panel → shows last import date + nights on record. Spinner during import.
+
+**Workflow:**
+1. Pull SD card from AirSense 11, upload new STR.edf to Google Drive `mcgrupp/resmed/` (overwrite existing)
+2. Tap "Import CPAP Data" in Driver dashboard
+3. Done — new nights merged, existing data untouched
+
+---
+
+### 11.4 Fitbit — Historical Archive Import
+
+**Source:** Google Drive `mcgrupp/fitbit/fitbit-raw-archive.tar.gz` (~500MB Fitbit data export)
+**Trigger:** Manual — dashboard button "Import Fitbit History" (one-time historical backfill; Fitbit no longer in active use)
+**Endpoint:** `POST /api/v1/ingest/fitbit` — no request body; backend downloads archive from Drive, extracts, parses, upserts
+
+**Archive contents (data to import):**
+| Data | Years | Maps To |
+|------|-------|---------|
+| Sleep stages + scores | 2016–2025 | `sleep_records` (source=fitbit) |
+| Resting heart rate | 2016–2025 | `body_metrics` metric=resting_hr |
+| HRV daily summary | 2024–2025 | `body_metrics` metric=hrv |
+| Steps | 2016–2025 | `body_metrics` metric=steps |
+| Active calories | 2016–2025 | `body_metrics` metric=active_calories |
+| Weight | 2017–2025 | `body_metrics` metric=weight_lbs |
+| Body fat % | 2017–2025 | `body_metrics` metric=body_fat_pct |
+| VO2 Max (estimated) | varies | `body_metrics` metric=vo2_max |
+| SpO2 daily | 2021–2025 | `body_metrics` metric=spo2 |
+| Exercises | 2016–2025 | `exercise_sessions` (source=fitbit) |
+| Glucose | 2007–2025 | `body_metrics` metric=glucose (flag for Dr. Smithson) |
+
+**Idempotency:** INSERT OR IGNORE on all records — safe to re-run. Never overwrites Oura or Apple Health records for same date.
+
+**Response:**
+```json
+{ "status": "ok", "processed": { "sleep": 1800, "metrics": 12400, "exercise": 620 }, "date_range": "2016-01-01 → 2025-10-01", "skipped": 0 }
+```
+
+**Dashboard:** "Import Fitbit History" button → progress indicator (large archive, may take 30–60 seconds) → summary on completion.
+
+**AFib note:** Archive contains 8 AFib ECG readings (2021–2023). Flag these in response summary for Dr. Smithson review.
+
+---
+
+### 11.5 Migration
 - Existing `health.db` food entries (54 rows, Feb 20–25) → migrate to Driver schema
 - One-time migration script, keep old DB as archive
 
@@ -656,3 +721,4 @@ Based on max HR formula: 220 - age (56) = **164 bpm**
 | 0.12 | 2026-02-27 | Added explicit health-agent log/query endpoints for food and workouts plus sleep query (`/api/v1/agent/log-food`, `/api/v1/agent/log-workout`, `/api/v1/agent/sleep`) |
 | 0.13 | 2026-02-27 | Started Phase 6 slice 1: photo estimate endpoint with method/confidence metadata, optional vision integration path, and dashboard edit-before-save overrides for photo logging |
 | 0.14 | 2026-02-27 | Completed Phase 6 slice 2: persisted daily/weekly coaching digests (`coaching_digests`), generation/read APIs (`/api/v1/coaching/digests/*`), dashboard digest surface, and test coverage |
+| 0.15 | 2026-03-01 | Added CPAP ingest spec (11.3 — manual button trigger, Google Drive EDF, upserts CPAP columns into sleep_records) and Fitbit historical archive import spec (11.4 — one-time backfill, 2016–2025 data, 500MB archive, glucose + AFib ECG review flag) |

@@ -26,7 +26,7 @@ If your change touches the frontend scaffold, make sure `make frontend-smoke` st
 - Update docs when behavior, repo structure, or workflows change
 - Add or update tests for backend behavior changes
 - Do not advertise features in the README that are not present in the repo
-- Keep `docker-compose.yml` runnable from a clean checkout
+- Docker files remain in the repo for CI reference but native deployment is primary
 
 ## Manual merge policy
 
