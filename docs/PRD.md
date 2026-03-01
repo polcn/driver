@@ -1,6 +1,6 @@
 # Driver — Personal Health Platform
 ## Product Requirements Document
-*Version 0.16 — 2026-03-01*
+*Version 0.17 — 2026-03-01*
 *Owner: Craig | Architect: McGrupp*
 
 ---
@@ -539,11 +539,11 @@ Based on max HR formula: 220 - age (56) = **164 bpm**
 
 ### 11.2 Apple Watch — Health Auto Export (REST API Push)
 **Ongoing sync:**
-- Health Auto Export (Premium) configured to POST JSON to Pulse `/ingest/apple-health` endpoint
+- Health Auto Export (Premium) configured to POST JSON to Driver `/ingest/apple-health` endpoint
 - Interval: hourly (or daily — TBD based on battery/reliability)
 - Batch Requests: ON (avoids oversized payloads)
 - Metrics selected: Workouts, Heart Rate, Active Energy, Steps, Weight, Sleep, HRV, Resting HR
-- Pulse endpoint parses `data.metrics` and `data.workouts`, upserts to DB
+- Driver endpoint parses `data.metrics` and `data.workouts`, upserts to DB
 
 **One-time historical import:**
 - In Health Auto Export: set date range to "All time", trigger manual export to REST API
@@ -598,30 +598,30 @@ Based on max HR formula: 220 - age (56) = **164 bpm**
 **Trigger:** Manual — dashboard button "Import Fitbit History" (one-time historical backfill; Fitbit no longer in active use)
 **Endpoint:** `POST /api/v1/ingest/fitbit` — synchronous; no request body; backend downloads archive from Drive, extracts to temp dir, parses, upserts. Returns when complete (may take 30–60 seconds for ~500MB archive).
 
-**Archive structure** (standard Fitbit data export layout):
+**Archive structure** (actual Fitbit data export — flat layout, not nested by type):
 ```
-fitbit-raw-archive/
-├── Sleep/
-│   └── sleep-YYYY-MM-DD.json        # per-month sleep stage data
-├── Physical Activity/
+fitbit-data/
+├── Global Export Data/
+│   ├── heart_rate-YYYY-MM-DD.json    # resting HR
+│   ├── steps-YYYY-MM-DD.json         # daily step counts
 │   ├── exercise-NNNN.json            # exercise log entries
-│   └── steps-YYYY-MM-DD.json        # daily step counts
-├── Heart Rate/
-│   └── heart_rate-YYYY-MM-DD.json   # daily resting HR
-├── Body/
-│   ├── weight-YYYY-MM-DD.json       # weight entries
-│   └── body_fat-YYYY-MM-DD.json     # body fat %
-├── HRV/
+│   ├── weight-YYYY-MM-DD.json        # weight entries
+│   ├── body_fat-YYYY-MM-DD.json      # body fat %
+│   └── ...                            # other metric files
+├── Sleep Score/
+│   └── sleep_score.csv               # sleep scores (CSV, not JSON)
+├── Sleep/
+│   └── sleep-YYYY-MM-DD.json         # sleep stage data
+├── Heart Rate Variability/
 │   └── Daily Heart Rate Variability Summary - YYYY-MM-DD.json
 ├── SpO2/
 │   └── Minute SpO2 - YYYY-MM-DD.json
-├── VO2 Max/
-│   └── vo2_max-YYYY-MM-DD.json
 ├── Glucose/
-│   └── glucose-YYYY-MM-DD.json      # may include Google Fit data
+│   └── glucose-YYYY-MM-DD.json       # may include Google Fit data
 └── ECG/
-    └── afib_ecg_readings.json        # AFib flag data
+    └── afib_ecg_readings.json         # AFib flag data
 ```
+**Note:** File naming and directory layout vary across Fitbit export versions. Parser must discover files by glob pattern, not hardcoded paths.
 
 **Archive contents (data to import):**
 | Data | Years | Maps To |
@@ -686,7 +686,7 @@ fitbit-raw-archive/
 - [x] Sleep API
 - [x] Oura sync job (sleep + readiness + HRV)
 - [x] Health Auto Export REST API ingest endpoint + Apple Watch HR zone calculation
-- [x] One-time historical import (all-time export via Health Auto Export)
+- [ ] One-time historical import (all-time export via Health Auto Export — endpoint works, sleep data not yet flowing)
 - [x] Dashboard: Exercise view (session history + zone breakdown chart) + Sleep view
 - [x] Health agent: log workouts, query sleep
 
@@ -730,7 +730,7 @@ fitbit-raw-archive/
 | 1 | Strength training detail | Full sets/reps vs. session-only | **Include sets/reps** (schema ready) — Craig logs 3x/week lifting |
 | 2 | Project name | Pulse, Vitals, HealthOS | Driver |
 | 3 | Apple Health export delivery | REST API push (preferred) vs. iCloud file | **REST API push** — Health Auto Export Premium POSTs directly to Driver |
-| 4 | CPAP data | **Google Drive** (`mcgrupp/resmed/STR.edf`) — parser built, 282 nights available | **Phase 2, solved** |
+| 4 | CPAP data | **Google Drive** (`mcgrupp/resmed/STR.edf`) — parser built, 282 nights available | **Specced in 11.3, implementation pending** |
 | 5 | Oura sync frequency | Daily cron vs. on-demand | Daily at 6 AM CT |
 
 ---
@@ -748,7 +748,7 @@ fitbit-raw-archive/
 
 ---
 
-*PRD status: Active v0.16 — Phase 6 in progress*
+*PRD status: Active v0.17 — Phase 6 in progress*
 *Next step: phase-6 quality tuning (vision confidence calibration + anomaly/missing-data flags)*
 
 ---
@@ -771,3 +771,4 @@ fitbit-raw-archive/
 | 0.14 | 2026-02-27 | Completed Phase 6 slice 2: persisted daily/weekly coaching digests (`coaching_digests`), generation/read APIs (`/api/v1/coaching/digests/*`), dashboard digest surface, and test coverage |
 | 0.15 | 2026-03-01 | Added CPAP ingest spec (11.3 — manual button trigger, Google Drive EDF, upserts CPAP columns into sleep_records) and Fitbit historical archive import spec (11.4 — one-time backfill, 2016–2025 data, 500MB archive, glucose + AFib ECG review flag) |
 | 0.16 | 2026-03-01 | Review fixes for 11.3 + 11.4: added GCP service account auth for Google Drive access; added `cpap_used=1` to CPAP extracted fields; clarified source field unchanged on merged Oura rows; added error response shapes for both endpoints; specified Fitbit archive directory structure; added sleep stage mapping (deep→deep_min, rem→rem_min); added exercise type normalization table; clarified importer-level dedup key as `(recorded_date, metric)` for body_metrics so active sources win; noted glucose may include Google Fit data pre-2015; made Fitbit endpoint synchronous; added `afib_ecg` count to Fitbit response; added CPAP + Fitbit endpoints to API table (7.8) |
+| 0.17 | 2026-03-01 | McGrupp review feedback: renamed "Pulse" → "Driver" in section 11.2; corrected Fitbit archive structure to match actual flat layout (`fitbit-data/Global Export Data/`, `Sleep Score/sleep_score.csv`); added note that parser must glob for files not hardcode paths; unchecked Phase 2 Apple Health historical import (sleep data not yet flowing); updated Open Decision #4 CPAP status from "Phase 2, solved" to "Specced in 11.3, implementation pending" |
