@@ -18,8 +18,7 @@ import json
 import os
 import sqlite3
 import sys
-from datetime import datetime, timedelta
-from pathlib import Path
+from datetime import datetime
 
 # ── Config ──────────────────────────────────────────────────────────────────
 
@@ -110,15 +109,29 @@ def _migrate_table_source(conn, table, old_check, new_check):
     cols = [c[1] for c in conn.execute(f"PRAGMA table_info({table})").fetchall()]
     col_list = ", ".join(cols)
 
-    conn.executescript(f"""
-        PRAGMA foreign_keys=OFF;
-        DROP TABLE IF EXISTS {table}__new;
-        {new_sql};
-        INSERT INTO {table}__new ({col_list}) SELECT {col_list} FROM {table};
-        DROP TABLE {table};
-        ALTER TABLE {table}__new RENAME TO {table};
-        PRAGMA foreign_keys=ON;
-    """)
+    index_rows = conn.execute(
+        """SELECT sql
+           FROM sqlite_master
+           WHERE type='index'
+             AND tbl_name=?
+             AND sql IS NOT NULL""",
+        (table,),
+    ).fetchall()
+    index_sql = [row[0] for row in index_rows if row[0]]
+
+    conn.execute("PRAGMA foreign_keys=OFF")
+    try:
+        conn.executescript(f"""
+            DROP TABLE IF EXISTS {table}__new;
+            {new_sql};
+            INSERT INTO {table}__new ({col_list}) SELECT {col_list} FROM {table};
+            DROP TABLE {table};
+            ALTER TABLE {table}__new RENAME TO {table};
+        """)
+        for statement in index_sql:
+            conn.execute(statement)
+    finally:
+        conn.execute("PRAGMA foreign_keys=ON")
     print(f"  Migrated {table}: added 'fitbit' to source CHECK")
 
 
@@ -183,11 +196,11 @@ def import_sleep(conn, data_dir, dry_run=False):
             if not date:
                 continue
 
-            # Check if record already exists from a higher-priority source
             existing = conn.execute(
                 "SELECT source FROM sleep_records WHERE recorded_date = ?", (date,)
             ).fetchone()
-            if existing:
+            # Preserve Oura/Apple as authoritative for overlapping sleep dates.
+            if existing and existing["source"] in ("oura", "apple_health"):
                 skipped += 1
                 continue
 
@@ -215,15 +228,49 @@ def import_sleep(conn, data_dir, dry_run=False):
             sleep_score = scores.get(date)
 
             if not dry_run:
-                conn.execute(
-                    """INSERT OR IGNORE INTO sleep_records
-                       (recorded_date, bedtime, wake_time, duration_min,
-                        deep_min, rem_min, core_min, awake_min,
-                        sleep_score, source)
-                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'fitbit')""",
-                    (date, start_time, end_time, duration_min or minutes_asleep,
-                     deep_min, rem_min, core_min, awake_min, sleep_score),
-                )
+                if existing:
+                    conn.execute(
+                        """UPDATE sleep_records
+                           SET bedtime=COALESCE(bedtime, ?),
+                               wake_time=COALESCE(wake_time, ?),
+                               duration_min=COALESCE(duration_min, ?),
+                               deep_min=COALESCE(deep_min, ?),
+                               rem_min=COALESCE(rem_min, ?),
+                               core_min=COALESCE(core_min, ?),
+                               awake_min=COALESCE(awake_min, ?),
+                               sleep_score=COALESCE(sleep_score, ?)
+                           WHERE recorded_date=?""",
+                        (
+                            start_time,
+                            end_time,
+                            duration_min or minutes_asleep,
+                            deep_min,
+                            rem_min,
+                            core_min,
+                            awake_min,
+                            sleep_score,
+                            date,
+                        ),
+                    )
+                else:
+                    conn.execute(
+                        """INSERT OR IGNORE INTO sleep_records
+                           (recorded_date, bedtime, wake_time, duration_min,
+                            deep_min, rem_min, core_min, awake_min,
+                            sleep_score, source)
+                           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'fitbit')""",
+                        (
+                            date,
+                            start_time,
+                            end_time,
+                            duration_min or minutes_asleep,
+                            deep_min,
+                            rem_min,
+                            core_min,
+                            awake_min,
+                            sleep_score,
+                        ),
+                    )
             imported += 1
 
     print(f"  Imported: {imported}, Skipped (existing): {skipped}")
@@ -260,13 +307,20 @@ def import_resting_hr(conn, data_dir, dry_run=False):
                 skipped += 1
                 continue
 
-            if not dry_run:
-                conn.execute(
-                    """INSERT INTO body_metrics (recorded_date, metric, value, source)
-                       VALUES (?, 'resting_hr', ?, 'fitbit')""",
-                    (date, round(hr_value, 1)),
-                )
-            imported += 1
+                if not dry_run:
+                    conn.execute(
+                        """INSERT INTO body_metrics (recorded_date, metric, value, source)
+                           VALUES (?, 'resting_hr', ?, 'fitbit')""",
+                        (date, round(hr_value, 1)),
+                    )
+                    conn.execute(
+                        """UPDATE sleep_records
+                           SET resting_hr=COALESCE(resting_hr, ?)
+                           WHERE recorded_date=?
+                             AND source='fitbit'""",
+                        (round(hr_value, 1), date),
+                    )
+                imported += 1
 
     print(f"  Imported: {imported}, Skipped (existing): {skipped}")
     return imported
@@ -307,6 +361,13 @@ def import_hrv(conn, data_dir, dry_run=False):
                         """INSERT INTO body_metrics (recorded_date, metric, value, source)
                            VALUES (?, 'hrv', ?, 'fitbit')""",
                         (date, round(rmssd_val, 1)),
+                    )
+                    conn.execute(
+                        """UPDATE sleep_records
+                           SET hrv=COALESCE(hrv, ?)
+                           WHERE recorded_date=?
+                             AND source='fitbit'""",
+                        (round(rmssd_val, 1), date),
                     )
                 imported += 1
 
@@ -617,7 +678,7 @@ def main():
         sys.exit(1)
 
     db_path = os.path.abspath(DATABASE_PATH)
-    print(f"Fitbit Historical Import")
+    print("Fitbit Historical Import")
     print(f"  Data dir: {data_dir}")
     print(f"  Database: {db_path}")
     print(f"  Dry run:  {args.dry_run}")
