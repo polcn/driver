@@ -249,7 +249,9 @@ def ingest_apple_health(
                 )
         # activeEnergyBurned is the scalar total; activeEnergy is time-series array
         raw_aeb = workout.get("activeEnergyBurned")
-        active_energy_burned = raw_aeb.get("qty") if isinstance(raw_aeb, dict) else raw_aeb
+        active_energy_burned = (
+            raw_aeb.get("qty") if isinstance(raw_aeb, dict) else raw_aeb
+        )
         if active_energy_burned is None:
             ae_list = workout.get("activeEnergy")
             if isinstance(ae_list, list):

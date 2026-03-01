@@ -76,4 +76,6 @@ def health_check():
 
 frontend_dist = Path(__file__).parent.parent.parent / "frontend" / "dist"
 if frontend_dist.is_dir() and os.getenv("TESTING") != "1":
-    app.mount("/", StaticFiles(directory=str(frontend_dist), html=True), name="frontend")
+    app.mount(
+        "/", StaticFiles(directory=str(frontend_dist), html=True), name="frontend"
+    )
