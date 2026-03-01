@@ -1,6 +1,6 @@
 # Driver — Personal Health Platform
 ## Product Requirements Document
-*Version 0.19 — 2026-03-01*
+*Version 0.20 — 2026-03-01*
 *Owner: Craig | Architect: McGrupp*
 
 ---
@@ -49,7 +49,7 @@ The system is designed to be built incrementally, with each phase delivering wor
 - **Photo food logging** — snap a photo, agent estimates macros, logs to Driver
 - **Alcohol tracking by type** — beer, wine, spirits tracked separately (different trig impact patterns)
 - **Symptoms** — ingested from Oura (already tracked there), not a separate UI
-- **CPAP data** — ResMed AirSense 11 AutoSet; SD card data accessible via Google Drive (`mcgrupp/resmed/`); full parser built; 282 nights of data (Feb 2025–Feb 2026); ingest into `sleep_records` with AHI, compliance hours, leak, pressure; correlate with Oura sleep quality
+- **CPAP data** — ResMed AirSense 11 AutoSet; SD card STR.edf copied to `data/cpap/`; full parser built; 285 nights of data (Feb 2025–Feb 2026); ingest into `sleep_records` with AHI, compliance hours, leak, pressure; correlate with Oura sleep quality
 - **Doctor visit prep** — auto-generate summary report for appointments (April 30 primary care, Dr. Tyson sleep)
 - **Body measurements** — waist circumference in addition to weight (better fat loss indicator)
 - **AI question answering** — "why am I not losing weight", "how can I get better rest" — data-grounded + general health knowledge (Option 2); cross-domain correlation across all data sources
@@ -397,8 +397,7 @@ Base URL: `http://driver.local/api/v1` (or Tailscale URL)
 |--------|------|-------------|
 | POST | `/ingest/oura` | Oura data batch |
 | POST | `/ingest/apple-health` | Apple Health Export batch |
-| POST | `/ingest/cpap` | CPAP import — fetches EDF from Google Drive, parses, upserts |
-| POST | `/ingest/fitbit` | Fitbit historical archive — fetches from Google Drive, parses, upserts |
+| POST | `/ingest/cpap` | CPAP import — reads STR.edf from `data/cpap/`, parses, upserts |
 
 ---
 
@@ -577,46 +576,53 @@ Where Apple Watch and Oura produce overlapping metrics, Oura is the authoritativ
 
 ### 11.3 CPAP — ResMed AirSense 11 AutoSet
 
-**Source:** Google Drive `mcgrupp/resmed/STR.edf`
-**Google Drive access:** Existing GCP service account (shared with OpenClaw). Path to credentials JSON configured via `GOOGLE_SERVICE_ACCOUNT_PATH` env var (not checked into repo).
-**Trigger:** Manual — dashboard button "Import CPAP Data" (user uploads new SD card data to Drive first)
-**Endpoint:** `POST /api/v1/ingest/cpap` — no request body; backend fetches EDF from Drive, parses, upserts
+**Source:** Local file `data/cpap/STR.edf` (copied from SD card). Google Drive `mcgrupp/resmed/` serves as backup only — not accessed by the application.
+**Trigger:** Two options:
+1. **Dashboard button** "Import CPAP Data" → `POST /api/v1/ingest/cpap` (reads from `data/cpap/STR.edf`)
+2. **CLI script** `python scripts/import_cpap.py` (same parser, same local path, standalone)
 
-**Parser:** Already built (EDF reader, 282 nights parsed Feb 2025–Feb 2026)
-**Data extracted per night:**
-- `recorded_date` — date of session
-- `cpap_used` — always 1 for imported CPAP nights
-- `cpap_ahi` — apnea-hypopnea index (×0.1 scale factor)
-- `cpap_hours` — usage hours
-- `cpap_leak_95` — 95th percentile leak rate (×0.02 L/s)
-- `cpap_pressure_avg` — average mask pressure (×0.02 cmH2O)
+**Endpoint:** `POST /api/v1/ingest/cpap` — no request body; reads EDF from local `data/cpap/` directory, parses, upserts
+
+**Parser:** ResMed STR.edf reader using pyedflib. Validated against real file: 285 nights (Feb 2025–Feb 2026), 78 signals per record. pyedflib returns physical (already-scaled) values — no manual scaling needed.
+
+**Signal mapping (ResMed STR.edf):**
+| Signal Label | Field | Unit | Notes |
+|---|---|---|---|
+| `Date` | `recorded_date` | days since Unix epoch | Convert: `date(1970,1,1) + timedelta(days=N)` |
+| `AHI` | `cpap_ahi` | events/hour | Already scaled by pyedflib |
+| `Duration` | `cpap_hours` | minutes | Divide by 60 for hours |
+| `Leak.95` | `cpap_leak_95` | L/s | Already scaled |
+| `MaskPress.50` | `cpap_pressure_avg` | cmH2O | Median mask pressure, already scaled |
+
+Sentinel values (−1, −0.1, −0.02) indicate "no data" — filtered as any value ≤ 0.
 
 **Storage:** Upserts CPAP columns into `sleep_records`; updates CPAP columns only on existing Oura rows — does NOT overwrite sleep quality fields and does NOT change the `source` field on existing rows. New CPAP-only rows use source=cpap. Full re-import each time (not incremental); safe due to upsert semantics.
 
 **Error handling:**
-- EDF file not found on Drive → `{ "status": "error", "detail": "STR.edf not found in mcgrupp/resmed/" }`
+- EDF file not found → `{ "status": "error", "detail": "STR.edf not found in data/cpap/" }`
 - EDF parse failure → `{ "status": "error", "detail": "Failed to parse EDF: ..." }`
 
 **Response:**
 ```json
-{ "status": "ok", "nights_imported": 282, "date_range": "2025-02-01 → 2026-02-28", "avg_ahi": 1.73, "skipped": 0 }
+{ "status": "ok", "nights_imported": 285, "date_range": "2025-02-25 → 2026-02-22", "avg_ahi": 1.8, "skipped": 0 }
 ```
 
 **Dashboard:** "Import CPAP Data" button on Sleep panel → shows last import date + nights on record. Spinner during import.
 
 **Workflow:**
-1. Pull SD card from AirSense 11, upload new STR.edf to Google Drive `mcgrupp/resmed/` (overwrite existing)
-2. Tap "Import CPAP Data" in Driver dashboard
+1. Pull SD card from AirSense 11, copy `STR.edf` to `~/proj/driver/data/cpap/` (overwrite existing)
+2. Either: tap "Import CPAP Data" in dashboard, or run `python scripts/import_cpap.py`
 3. Done — new nights merged, existing data untouched
+
+**Dependencies:** `pyedflib` (EDF reader). No Google API libraries required.
 
 ---
 
 ### 11.4 Fitbit — Historical Archive Import
 
-**Source:** Google Drive `mcgrupp/fitbit/fitbit-raw-archive.tar.gz` (~500MB Fitbit data export)
-**Google Drive access:** Same GCP service account as CPAP (11.3), via `GOOGLE_SERVICE_ACCOUNT_PATH` env var.
-**Trigger:** Manual — dashboard button "Import Fitbit History" (one-time historical backfill; Fitbit no longer in active use)
-**Endpoint:** `POST /api/v1/ingest/fitbit` — synchronous; no request body; backend downloads archive from Drive, extracts to temp dir, parses, upserts. Returns when complete (may take 30–60 seconds for ~500MB archive).
+**Source:** Local directory `data/fitbit/fitbit-data/` (extracted Fitbit data export). Google Drive `mcgrupp/fitbit/` serves as backup only.
+**Trigger:** One-time CLI script `python scripts/import_fitbit.py` (historical backfill; Fitbit no longer in active use)
+**Status:** **Complete** — 17,775 records imported (2016–2025). Script is idempotent and safe to re-run.
 
 **Archive structure** (actual Fitbit data export — flat layout, not nested by type):
 ```
@@ -751,7 +757,7 @@ fitbit-data/
 | 1 | Strength training detail | Full sets/reps vs. session-only | **Include sets/reps** (schema ready) — Craig logs 3x/week lifting |
 | 2 | Project name | Pulse, Vitals, HealthOS | Driver |
 | 3 | Apple Health export delivery | REST API push (preferred) vs. iCloud file | **REST API push** — Health Auto Export Premium POSTs directly to Driver |
-| 4 | CPAP data | **Google Drive** (`mcgrupp/resmed/STR.edf`) — parser built, 282 nights available | **Specced in 11.3, implementation pending** |
+| 4 | CPAP data | **Local file** (`data/cpap/STR.edf`) — parser built, 285 nights available. Drive is backup only. | **Implemented** — endpoint + CLI script, no Google API deps |
 | 5 | Oura sync frequency | Daily cron vs. on-demand | Daily at 6 AM CT |
 
 ---
@@ -795,3 +801,4 @@ fitbit-data/
 | 0.17 | 2026-03-01 | McGrupp review feedback: renamed "Pulse" → "Driver" in section 11.2; corrected Fitbit archive structure to match actual flat layout (`fitbit-data/Global Export Data/`, `Sleep Score/sleep_score.csv`); added note that parser must glob for files not hardcode paths; unchecked Phase 2 Apple Health historical import (sleep data not yet flowing); updated Open Decision #4 CPAP status from "Phase 2, solved" to "Specced in 11.3, implementation pending" |
 | 0.18 | 2026-03-01 | Security hardening for Drive auth docs: replaced hardcoded service-account credential path with `GOOGLE_SERVICE_ACCOUNT_PATH` env var in CPAP/Fitbit sections and added env var to `.env.example`. |
 | 0.19 | 2026-03-01 | Added data source indicator to dashboard spec (color-coded source attribution on trend charts); added to Phase 6 backlog; Fitbit historical import completed (17,775 records, 2016–2025) |
+| 0.20 | 2026-03-01 | Removed Google Drive dependency from CPAP and Fitbit ingest — both now read from local `data/` directories. CPAP supports both dashboard endpoint and CLI script. Dropped `google-auth`/`google-api-python-client` as app dependencies (Drive is backup storage only). Updated signal mapping to reflect actual ResMed STR.edf format (no manual scaling, pyedflib returns physical values). |
