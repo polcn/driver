@@ -15,8 +15,26 @@ def _build_narrative_insights(conn, today: date) -> list[str]:
 
     sleep_rows = conn.execute(
         """SELECT recorded_date, sleep_score, hrv, resting_hr
-           FROM sleep_records
-           WHERE recorded_date BETWEEN date(?, '-6 days') AND ?
+           FROM (
+             SELECT
+               recorded_date,
+               sleep_score,
+               hrv,
+               resting_hr,
+               ROW_NUMBER() OVER (
+                 PARTITION BY recorded_date
+                 ORDER BY
+                   CASE source
+                     WHEN 'oura' THEN 0
+                     WHEN 'apple_health' THEN 1
+                     ELSE 2
+                   END,
+                   created_at DESC
+               ) AS row_num
+             FROM sleep_records
+             WHERE recorded_date BETWEEN date(?, '-6 days') AND ?
+           ) prioritized
+           WHERE row_num = 1
            ORDER BY recorded_date""",
         (today_str, today_str),
     ).fetchall()
@@ -59,7 +77,27 @@ def _build_narrative_insights(conn, today: date) -> list[str]:
 
     alcohol_sleep_rows = conn.execute(
         """SELECT s.recorded_date, s.sleep_score, COALESCE(f.alcohol_calories, 0) AS alcohol_calories
-           FROM sleep_records s
+           FROM (
+               SELECT recorded_date, sleep_score
+               FROM (
+                   SELECT
+                     recorded_date,
+                     sleep_score,
+                     ROW_NUMBER() OVER (
+                       PARTITION BY recorded_date
+                       ORDER BY
+                         CASE source
+                           WHEN 'oura' THEN 0
+                           WHEN 'apple_health' THEN 1
+                           ELSE 2
+                         END,
+                         created_at DESC
+                     ) AS row_num
+                   FROM sleep_records
+                   WHERE recorded_date BETWEEN date(?, '-13 days') AND ?
+               )
+               WHERE row_num = 1
+           ) s
            LEFT JOIN (
                SELECT recorded_date, SUM(alcohol_calories) AS alcohol_calories
                FROM food_entries
@@ -67,7 +105,6 @@ def _build_narrative_insights(conn, today: date) -> list[str]:
                  AND deleted_at IS NULL
                GROUP BY recorded_date
            ) f ON f.recorded_date = s.recorded_date
-           WHERE s.recorded_date BETWEEN date(?, '-13 days') AND ?
            ORDER BY s.recorded_date""",
         (today_str, today_str, today_str, today_str),
     ).fetchall()
@@ -173,7 +210,13 @@ def get_today(
         """SELECT *
            FROM sleep_records
            WHERE recorded_date=?
-           ORDER BY created_at DESC
+           ORDER BY
+             CASE source
+               WHEN 'oura' THEN 0
+               WHEN 'apple_health' THEN 1
+               ELSE 2
+             END,
+             created_at DESC
            LIMIT 1""",
         (today,),
     ).fetchone()
@@ -183,16 +226,26 @@ def get_today(
         "SELECT * FROM daily_suggestions WHERE suggestion_date=?", (today,)
     ).fetchone()
     activity_rows = conn.execute(
-        """SELECT bm.metric, bm.value
-           FROM body_metrics bm
-           JOIN (
-                SELECT metric, MAX(id) AS max_id
-                FROM body_metrics
-                WHERE recorded_date = ?
-                  AND metric IN ('steps', 'active_calories')
-                GROUP BY metric
-           ) latest
-             ON bm.id = latest.max_id""",
+        """SELECT metric, value
+           FROM (
+             SELECT
+               metric,
+               value,
+               ROW_NUMBER() OVER (
+                 PARTITION BY metric
+                 ORDER BY
+                   CASE source
+                     WHEN 'apple_health' THEN 0
+                     WHEN 'oura' THEN 1
+                     ELSE 2
+                   END,
+                   id DESC
+               ) AS row_num
+             FROM body_metrics
+             WHERE recorded_date = ?
+               AND metric IN ('steps', 'active_calories')
+           ) prioritized
+           WHERE row_num = 1""",
         (today,),
     ).fetchall()
     activity = {row["metric"]: row["value"] for row in activity_rows}
