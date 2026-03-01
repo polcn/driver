@@ -537,6 +537,25 @@ Based on max HR formula: 220 - age (56) = **164 bpm**
 - Upserts into `sleep_records` (source=oura)
 - On conflict (same date): update if source=oura (allow re-sync)
 
+### 11.1b Data Source Priority (Overlap Rules)
+
+Where Apple Watch and Oura produce overlapping metrics, Oura is the authoritative source for sleep/recovery data (more accurate passive ring sensor). Apple Watch is authoritative for activity/exercise data.
+
+| Metric | Authoritative Source | Dashboard Query Rule |
+|--------|---------------------|---------------------|
+| Sleep duration/stages/scores | **Oura** | Query sleep_records where source=oura; fall back to apple_health only if no Oura record exists |
+| HRV | **Oura** | Use sleep_records.hrv (overnight avg); ignore apple_health HRV in body_metrics for trend charts |
+| Resting HR | **Oura** | Use sleep_records.resting_hr; ignore apple_health resting_hr in body_metrics for trend charts |
+| Readiness score | **Oura only** | No overlap — Apple Watch doesn't produce this |
+| Steps | **Apple Watch** | Query body_metrics where source=apple_health; fall back to oura |
+| Active calories | **Apple Watch** | Query body_metrics where source=apple_health; fall back to oura |
+| Workouts + HR zones | **Apple Watch only** | No overlap — Oura doesn't track workout HR |
+| Weight | **Most recent source** | Query body_metrics, no source preference — last logged value wins |
+
+**Ingest behavior:** Both sources are always stored (no data discarded). Priority is enforced at query time in dashboard/API responses, not at write time.
+
+---
+
 ### 11.2 Apple Watch — Health Auto Export (REST API Push)
 **Ongoing sync:**
 - Health Auto Export (Premium) configured to POST JSON to Driver `/ingest/apple-health` endpoint
