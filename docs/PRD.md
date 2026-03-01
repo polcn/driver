@@ -1,6 +1,6 @@
 # Driver — Personal Health Platform
 ## Product Requirements Document
-*Version 0.17 — 2026-03-01*
+*Version 0.18 — 2026-03-01*
 *Owner: Craig | Architect: McGrupp*
 
 ---
@@ -558,7 +558,7 @@ Based on max HR formula: 220 - age (56) = **164 bpm**
 ### 11.3 CPAP — ResMed AirSense 11 AutoSet
 
 **Source:** Google Drive `mcgrupp/resmed/STR.edf`
-**Google Drive access:** GCP service account with Drive API scope; EDF file shared to service account email. Credentials stored in `~/.driver/gcp-service-account.json` (not in repo).
+**Google Drive access:** Existing GCP service account (shared with OpenClaw). Path to credentials JSON configured via `GOOGLE_SERVICE_ACCOUNT_PATH` env var (not checked into repo).
 **Trigger:** Manual — dashboard button "Import CPAP Data" (user uploads new SD card data to Drive first)
 **Endpoint:** `POST /api/v1/ingest/cpap` — no request body; backend fetches EDF from Drive, parses, upserts
 
@@ -594,7 +594,7 @@ Based on max HR formula: 220 - age (56) = **164 bpm**
 ### 11.4 Fitbit — Historical Archive Import
 
 **Source:** Google Drive `mcgrupp/fitbit/fitbit-raw-archive.tar.gz` (~500MB Fitbit data export)
-**Google Drive access:** Same GCP service account as CPAP (11.3). Archive file shared to service account email.
+**Google Drive access:** Same GCP service account as CPAP (11.3), via `GOOGLE_SERVICE_ACCOUNT_PATH` env var.
 **Trigger:** Manual — dashboard button "Import Fitbit History" (one-time historical backfill; Fitbit no longer in active use)
 **Endpoint:** `POST /api/v1/ingest/fitbit` — synchronous; no request body; backend downloads archive from Drive, extracts to temp dir, parses, upserts. Returns when complete (may take 30–60 seconds for ~500MB archive).
 
@@ -748,7 +748,7 @@ fitbit-data/
 
 ---
 
-*PRD status: Active v0.17 — Phase 6 in progress*
+*PRD status: Active v0.18 — Phase 6 in progress*
 *Next step: phase-6 quality tuning (vision confidence calibration + anomaly/missing-data flags)*
 
 ---
@@ -772,3 +772,4 @@ fitbit-data/
 | 0.15 | 2026-03-01 | Added CPAP ingest spec (11.3 — manual button trigger, Google Drive EDF, upserts CPAP columns into sleep_records) and Fitbit historical archive import spec (11.4 — one-time backfill, 2016–2025 data, 500MB archive, glucose + AFib ECG review flag) |
 | 0.16 | 2026-03-01 | Review fixes for 11.3 + 11.4: added GCP service account auth for Google Drive access; added `cpap_used=1` to CPAP extracted fields; clarified source field unchanged on merged Oura rows; added error response shapes for both endpoints; specified Fitbit archive directory structure; added sleep stage mapping (deep→deep_min, rem→rem_min); added exercise type normalization table; clarified importer-level dedup key as `(recorded_date, metric)` for body_metrics so active sources win; noted glucose may include Google Fit data pre-2015; made Fitbit endpoint synchronous; added `afib_ecg` count to Fitbit response; added CPAP + Fitbit endpoints to API table (7.8) |
 | 0.17 | 2026-03-01 | McGrupp review feedback: renamed "Pulse" → "Driver" in section 11.2; corrected Fitbit archive structure to match actual flat layout (`fitbit-data/Global Export Data/`, `Sleep Score/sleep_score.csv`); added note that parser must glob for files not hardcode paths; unchecked Phase 2 Apple Health historical import (sleep data not yet flowing); updated Open Decision #4 CPAP status from "Phase 2, solved" to "Specced in 11.3, implementation pending" |
+| 0.18 | 2026-03-01 | Security hardening for Drive auth docs: replaced hardcoded service-account credential path with `GOOGLE_SERVICE_ACCOUNT_PATH` env var in CPAP/Fitbit sections and added env var to `.env.example`. |
