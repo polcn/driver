@@ -52,7 +52,9 @@ def parse_cpap_edf(path: str | Path) -> list[dict[str, Any]]:
         signals: dict[str, list[float]] = {}
         for idx, label in enumerate(labels):
             values = reader.readSignal(idx)
-            signals[label] = values.tolist() if hasattr(values, "tolist") else list(values)
+            signals[label] = (
+                values.tolist() if hasattr(values, "tolist") else list(values)
+            )
 
         # Date signal contains ordinal day numbers
         date_signal = _get_signal(signals, "Date")
@@ -78,7 +80,9 @@ def parse_cpap_edf(path: str | Path) -> list[dict[str, Any]]:
             if raw_date is not None and float(raw_date) > 0:
                 try:
                     # ResMed Date signal is days since Unix epoch (1970-01-01)
-                    recorded_date = date(1970, 1, 1) + timedelta(days=int(round(float(raw_date))))
+                    recorded_date = date(1970, 1, 1) + timedelta(
+                        days=int(round(float(raw_date)))
+                    )
                 except (OverflowError, ValueError):
                     recorded_date = start + timedelta(days=idx)
             else:
@@ -88,7 +92,9 @@ def parse_cpap_edf(path: str | Path) -> list[dict[str, Any]]:
             duration_min = _positive_or_none(
                 duration_signal[idx] if idx < len(duration_signal) else None
             )
-            leak = _positive_or_none(leak_signal[idx] if idx < len(leak_signal) else None)
+            leak = _positive_or_none(
+                leak_signal[idx] if idx < len(leak_signal) else None
+            )
             pressure = _positive_or_none(
                 pressure_signal[idx] if idx < len(pressure_signal) else None
             )
@@ -106,7 +112,9 @@ def parse_cpap_edf(path: str | Path) -> list[dict[str, Any]]:
                     "cpap_ahi": round(ahi, 2) if ahi is not None else None,
                     "cpap_hours": hours,
                     "cpap_leak_95": round(leak, 2) if leak is not None else None,
-                    "cpap_pressure_avg": round(pressure, 2) if pressure is not None else None,
+                    "cpap_pressure_avg": round(pressure, 2)
+                    if pressure is not None
+                    else None,
                 }
             )
 

@@ -619,7 +619,9 @@ def _download_str_edf_to_temp(service) -> Path:
 
     file_id = files[0]["id"]
     request = service.files().get_media(fileId=file_id)
-    tmp = tempfile.NamedTemporaryFile(prefix="driver-cpap-", suffix=".edf", delete=False)
+    tmp = tempfile.NamedTemporaryFile(
+        prefix="driver-cpap-", suffix=".edf", delete=False
+    )
     tmp_path = Path(tmp.name)
     try:
         downloader = MediaIoBaseDownload(tmp, request)
@@ -689,7 +691,9 @@ def ingest_cpap(conn: sqlite3.Connection = Depends(get_db_dependency)):
         }
 
     dates = sorted(night["recorded_date"] for night in nights)
-    ahi_values = [night["cpap_ahi"] for night in nights if night["cpap_ahi"] is not None]
+    ahi_values = [
+        night["cpap_ahi"] for night in nights if night["cpap_ahi"] is not None
+    ]
     avg_ahi = round(sum(ahi_values) / len(ahi_values), 2) if ahi_values else None
 
     return {

@@ -161,11 +161,11 @@ def test_cpap_parser_reads_resmed_str_edf_format(monkeypatch):
 
         def readSignal(self, idx):
             rows = [
-                [day0, day1],        # Date: ordinal days since epoch
-                [2.5, 1.8],          # AHI: events/hour (physical)
-                [420, 480],          # Duration: minutes
-                [0.32, 0.18],        # Leak.95: L/s (physical)
-                [9.4, 10.2],         # MaskPress.50: cmH2O (physical)
+                [day0, day1],  # Date: ordinal days since epoch
+                [2.5, 1.8],  # AHI: events/hour (physical)
+                [420, 480],  # Duration: minutes
+                [0.32, 0.18],  # Leak.95: L/s (physical)
+                [9.4, 10.2],  # MaskPress.50: cmH2O (physical)
             ]
             return rows[idx]
 
@@ -184,7 +184,7 @@ def test_cpap_parser_reads_resmed_str_edf_format(monkeypatch):
             "recorded_date": "2026-03-01",
             "cpap_used": 1,
             "cpap_ahi": 2.5,
-            "cpap_hours": 7.0,       # 420 min / 60
+            "cpap_hours": 7.0,  # 420 min / 60
             "cpap_leak_95": 0.32,
             "cpap_pressure_avg": 9.4,
         },
@@ -192,7 +192,7 @@ def test_cpap_parser_reads_resmed_str_edf_format(monkeypatch):
             "recorded_date": "2026-03-02",
             "cpap_used": 1,
             "cpap_ahi": 1.8,
-            "cpap_hours": 8.0,       # 480 min / 60
+            "cpap_hours": 8.0,  # 480 min / 60
             "cpap_leak_95": 0.18,
             "cpap_pressure_avg": 10.2,
         },
