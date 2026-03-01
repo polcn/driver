@@ -147,7 +147,7 @@ def test_cpap_parser_reads_resmed_str_edf_format(monkeypatch):
       - "MaskPress.50": median mask pressure in cmH2O
     """
     # 2026-03-01 = day 20513 since 1970-01-01
-    from datetime import date, timedelta
+    from datetime import date
 
     day0 = (date(2026, 3, 1) - date(1970, 1, 1)).days  # 20513
     day1 = day0 + 1
