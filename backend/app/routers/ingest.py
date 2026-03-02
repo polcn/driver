@@ -1,5 +1,4 @@
 import sqlite3
-import tempfile
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
@@ -584,71 +583,22 @@ def ingest_oura(payload: dict, conn: sqlite3.Connection = Depends(get_db_depende
     }
 
 
-def _drive_service():
-    from os import getenv
-
-    from google.oauth2 import service_account
-    from googleapiclient.discovery import build
-
-    configured = getenv("GOOGLE_SERVICE_ACCOUNT_PATH")
-    credentials_path = Path(configured).expanduser() if configured else None
-
-    if not credentials_path or not credentials_path.is_file():
-        raise FileNotFoundError(
-            "GOOGLE_SERVICE_ACCOUNT_PATH is not set or points to a missing file"
-        )
-
-    credentials = service_account.Credentials.from_service_account_file(
-        str(credentials_path), scopes=["https://www.googleapis.com/auth/drive.readonly"]
-    )
-    return build("drive", "v3", credentials=credentials, cache_discovery=False)
-
-
-def _download_str_edf_to_temp(service) -> Path:
-    from googleapiclient.http import MediaIoBaseDownload
-
-    query = "name='STR.edf' and trashed=false"
-    files = (
-        service.files()
-        .list(q=query, fields="files(id, name)", pageSize=10)
-        .execute()
-        .get("files", [])
-    )
-    if not files:
-        raise FileNotFoundError("STR.edf not found in mcgrupp/resmed/")
-
-    file_id = files[0]["id"]
-    request = service.files().get_media(fileId=file_id)
-    tmp = tempfile.NamedTemporaryFile(
-        prefix="driver-cpap-", suffix=".edf", delete=False
-    )
-    tmp_path = Path(tmp.name)
-    try:
-        downloader = MediaIoBaseDownload(tmp, request)
-        done = False
-        while not done:
-            _, done = downloader.next_chunk()
-    finally:
-        tmp.close()
-    return tmp_path
+CPAP_DATA_DIR = Path(__file__).parent.parent.parent.parent / "data" / "cpap"
 
 
 @router.post("/cpap")
 def ingest_cpap(conn: sqlite3.Connection = Depends(get_db_dependency)):
     from ..parsers.cpap_edf import parse_cpap_edf
 
-    temp_path: Path | None = None
+    edf_path = CPAP_DATA_DIR / "STR.edf"
     try:
-        service = _drive_service()
-        temp_path = _download_str_edf_to_temp(service)
-        nights = parse_cpap_edf(temp_path)
+        if not edf_path.is_file():
+            raise FileNotFoundError(f"STR.edf not found in {CPAP_DATA_DIR}")
+        nights = parse_cpap_edf(edf_path)
     except FileNotFoundError as exc:
         return {"status": "error", "detail": str(exc)}
     except Exception as exc:
         return {"status": "error", "detail": f"Failed to parse EDF: {exc}"}
-    finally:
-        if temp_path and temp_path.exists():
-            temp_path.unlink(missing_ok=True)
 
     for night in nights:
         conn.execute(
