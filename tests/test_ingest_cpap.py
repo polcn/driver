@@ -1,4 +1,5 @@
 from datetime import datetime
+from pathlib import Path
 
 
 def test_ingest_cpap_merges_onto_existing_oura_row_without_overwrite(
@@ -15,11 +16,6 @@ def test_ingest_cpap_merges_onto_existing_oura_row_without_overwrite(
     )
     assert create_sleep.status_code == 201
 
-    monkeypatch.setattr("app.routers.ingest._drive_service", lambda: object())
-    monkeypatch.setattr(
-        "app.routers.ingest._download_str_edf_to_temp",
-        lambda service: __import__("pathlib").Path("/tmp/fake-cpap.edf"),
-    )
     monkeypatch.setattr(
         "app.parsers.cpap_edf.parse_cpap_edf",
         lambda _: [
@@ -33,6 +29,11 @@ def test_ingest_cpap_merges_onto_existing_oura_row_without_overwrite(
             }
         ],
     )
+    # Point CPAP_DATA_DIR to a temp dir with a dummy file
+    tmp = Path("/tmp/test-cpap")
+    tmp.mkdir(exist_ok=True)
+    (tmp / "STR.edf").touch()
+    monkeypatch.setattr("app.routers.ingest.CPAP_DATA_DIR", tmp)
 
     response = client.post("/api/v1/ingest/cpap")
     assert response.status_code == 200
@@ -63,11 +64,6 @@ def test_ingest_cpap_merges_onto_existing_oura_row_without_overwrite(
 def test_ingest_cpap_creates_new_cpap_row_when_no_sleep_row_exists(
     client, db_module_fixture, monkeypatch
 ):
-    monkeypatch.setattr("app.routers.ingest._drive_service", lambda: object())
-    monkeypatch.setattr(
-        "app.routers.ingest._download_str_edf_to_temp",
-        lambda service: __import__("pathlib").Path("/tmp/fake-cpap.edf"),
-    )
     monkeypatch.setattr(
         "app.parsers.cpap_edf.parse_cpap_edf",
         lambda _: [
@@ -81,6 +77,10 @@ def test_ingest_cpap_creates_new_cpap_row_when_no_sleep_row_exists(
             }
         ],
     )
+    tmp = Path("/tmp/test-cpap")
+    tmp.mkdir(exist_ok=True)
+    (tmp / "STR.edf").touch()
+    monkeypatch.setattr("app.routers.ingest.CPAP_DATA_DIR", tmp)
 
     response = client.post("/api/v1/ingest/cpap")
     assert response.status_code == 200
@@ -102,33 +102,30 @@ def test_ingest_cpap_creates_new_cpap_row_when_no_sleep_row_exists(
         conn.close()
 
 
-def test_ingest_cpap_returns_error_when_drive_file_missing(client, monkeypatch):
-    monkeypatch.setattr("app.routers.ingest._drive_service", lambda: object())
-
-    def raise_not_found(service):
-        raise FileNotFoundError("STR.edf not found in mcgrupp/resmed/")
-
-    monkeypatch.setattr("app.routers.ingest._download_str_edf_to_temp", raise_not_found)
+def test_ingest_cpap_returns_error_when_file_missing(client, monkeypatch):
+    tmp = Path("/tmp/test-cpap-empty")
+    tmp.mkdir(exist_ok=True)
+    # Ensure no STR.edf exists
+    edf = tmp / "STR.edf"
+    if edf.exists():
+        edf.unlink()
+    monkeypatch.setattr("app.routers.ingest.CPAP_DATA_DIR", tmp)
 
     response = client.post("/api/v1/ingest/cpap")
     assert response.status_code == 200
-    assert response.json() == {
-        "status": "error",
-        "detail": "STR.edf not found in mcgrupp/resmed/",
-    }
+    assert response.json()["status"] == "error"
+    assert "STR.edf not found" in response.json()["detail"]
 
 
 def test_ingest_cpap_returns_error_when_parser_fails(client, monkeypatch):
-    monkeypatch.setattr("app.routers.ingest._drive_service", lambda: object())
-    monkeypatch.setattr(
-        "app.routers.ingest._download_str_edf_to_temp",
-        lambda service: __import__("pathlib").Path("/tmp/fake-cpap.edf"),
-    )
-
     def parse_fail(_):
         raise ValueError("corrupt edf")
 
     monkeypatch.setattr("app.parsers.cpap_edf.parse_cpap_edf", parse_fail)
+    tmp = Path("/tmp/test-cpap")
+    tmp.mkdir(exist_ok=True)
+    (tmp / "STR.edf").touch()
+    monkeypatch.setattr("app.routers.ingest.CPAP_DATA_DIR", tmp)
 
     response = client.post("/api/v1/ingest/cpap")
     assert response.status_code == 200
@@ -137,19 +134,10 @@ def test_ingest_cpap_returns_error_when_parser_fails(client, monkeypatch):
 
 
 def test_cpap_parser_reads_resmed_str_edf_format(monkeypatch):
-    """Test parser with realistic ResMed STR.edf signal names and physical values.
-
-    ResMed STR.edf signals use:
-      - "Date": days since Unix epoch (1970-01-01)
-      - "AHI": events/hour (already scaled by pyedflib)
-      - "Duration": usage in minutes
-      - "Leak.95": 95th percentile leak in L/s
-      - "MaskPress.50": median mask pressure in cmH2O
-    """
-    # 2026-03-01 = day 20513 since 1970-01-01
+    """Test parser with realistic ResMed STR.edf signal names and physical values."""
     from datetime import date
 
-    day0 = (date(2026, 3, 1) - date(1970, 1, 1)).days  # 20513
+    day0 = (date(2026, 3, 1) - date(1970, 1, 1)).days
     day1 = day0 + 1
 
     class FakeReader:
@@ -161,11 +149,11 @@ def test_cpap_parser_reads_resmed_str_edf_format(monkeypatch):
 
         def readSignal(self, idx):
             rows = [
-                [day0, day1],  # Date: ordinal days since epoch
-                [2.5, 1.8],  # AHI: events/hour (physical)
-                [420, 480],  # Duration: minutes
-                [0.32, 0.18],  # Leak.95: L/s (physical)
-                [9.4, 10.2],  # MaskPress.50: cmH2O (physical)
+                [day0, day1],
+                [2.5, 1.8],
+                [420, 480],
+                [0.32, 0.18],
+                [9.4, 10.2],
             ]
             return rows[idx]
 
@@ -184,7 +172,7 @@ def test_cpap_parser_reads_resmed_str_edf_format(monkeypatch):
             "recorded_date": "2026-03-01",
             "cpap_used": 1,
             "cpap_ahi": 2.5,
-            "cpap_hours": 7.0,  # 420 min / 60
+            "cpap_hours": 7.0,
             "cpap_leak_95": 0.32,
             "cpap_pressure_avg": 9.4,
         },
@@ -192,7 +180,7 @@ def test_cpap_parser_reads_resmed_str_edf_format(monkeypatch):
             "recorded_date": "2026-03-02",
             "cpap_used": 1,
             "cpap_ahi": 1.8,
-            "cpap_hours": 8.0,  # 480 min / 60
+            "cpap_hours": 8.0,
             "cpap_leak_95": 0.18,
             "cpap_pressure_avg": 10.2,
         },
