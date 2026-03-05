@@ -1,8 +1,9 @@
 name: Oura Sync
 
 on:
-  schedule:
-    - cron: "0 12 * * *"
+  # schedule disabled — Oura sync runs locally via launchd (com.driver.oura-sync)
+  # schedule:
+  #   - cron: "0 12 * * *"
   workflow_dispatch:
     inputs:
       start_date:
