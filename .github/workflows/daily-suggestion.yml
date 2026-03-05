@@ -1,8 +1,9 @@
 name: Daily Suggestion
 
 on:
-  schedule:
-    - cron: "0 14 * * *"
+  # schedule disabled — runs locally via launchd
+  # schedule:
+  #   - cron: "0 14 * * *"
   workflow_dispatch:
     inputs:
       target_date:
